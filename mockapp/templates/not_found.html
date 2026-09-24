@@ -1,0 +1,20 @@
+{% extends "_base.html" %}
+{% block title %}No Record{% endblock %}
+{% block banner %}MEMBER INQUIRY — NO RECORD{% endblock %}
+{% block content %}
+{#
+   This is the assignment's canonical "business outcome". The HTTP status is
+   200, the application is behaving correctly, and the caller has received a
+   real answer. Reporting this as a failure is the mistake the error taxonomy
+   exists to prevent.
+#}
+<table class="tbl1" cellpadding="6" cellspacing="0" width="480">
+  <tr><td class="c1">Host Response</td></tr>
+  <tr><td class="c3">
+    <span class="c4" role="status">NO RECORD FOUND FOR MEMBER {{ member_no }}</span>
+    <p>The host returned no member matching the number supplied. Verify the number and retry.</p>
+    <p>Host code: MBR-0404</p>
+  </td></tr>
+</table>
+<p style="margin-top:12px"><a href="{{ base }}/lookup">Return to Lookup</a></p>
+{% endblock %}

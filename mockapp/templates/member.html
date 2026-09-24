@@ -1,0 +1,59 @@
+{% extends "_base.html" %}
+{% block title %}Member {{ member.member_no }}{% endblock %}
+{% block banner %}MEMBER INQUIRY — DETAIL{% endblock %}
+{% block content %}
+
+{#
+   The summary panel uses the same left-cell-as-caption convention as the
+   lookup form. This is what an extraction step targets: the caption is stable
+   across tenants and releases, the value is what we want.
+#}
+<table class="tbl1" cellpadding="3" cellspacing="0" width="560">
+  <tr><td class="c1" colspan="4">Member Summary</td></tr>
+  <tr>
+    <td class="c2" width="130" nowrap>Member #:</td>
+    <td class="c3" width="150">{{ member.member_no }}</td>
+    <td class="c2" width="110" nowrap>Status:</td>
+    <td class="c3">{{ member.status }}</td>
+  </tr>
+  <tr>
+    <td class="c2" nowrap>Member Name:</td>
+    <td class="c3">{{ member.name }}</td>
+    <td class="c2" nowrap>Branch:</td>
+    <td class="c3">{{ member.branch }}</td>
+  </tr>
+  <tr>
+    <td class="c2" nowrap>Regular Savings Balance:</td>
+    <td class="c3"><b>{{ savings.balance if savings else 'N/A' }}</b></td>
+    <td class="c2" nowrap>Member Since:</td>
+    <td class="c3">{{ member.joined }}</td>
+  </tr>
+</table>
+
+<br>
+
+<table class="tbl1" cellpadding="3" cellspacing="0" width="560">
+  <tr><td class="c1" colspan="4">Share &amp; Loan Accounts</td></tr>
+  <tr>
+    <td class="c2"><b>Account</b></td>
+    <td class="c2"><b>Type</b></td>
+    <td class="c2" align="right"><b>Balance</b></td>
+    <td class="c2"><b>Status</b></td>
+  </tr>
+  {% for acct in member.accounts %}
+  <tr>
+    <td class="c3">{{ acct.number }}</td>
+    <td class="c3">{{ acct.kind }}</td>
+    <td class="c3" align="right">{{ acct.balance }}</td>
+    <td class="c3">{{ acct.status }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<table class="tbl2" cellpadding="6" cellspacing="0" style="margin-top:10px">
+  <tr>
+    <td><a href="{{ base }}/subaccount/new?member={{ member.member_no }}">Open Sub-Account</a></td>
+    <td><a href="{{ base }}/lookup">New Search</a></td>
+  </tr>
+</table>
+{% endblock %}

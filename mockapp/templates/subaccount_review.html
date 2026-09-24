@@ -1,0 +1,26 @@
+{% extends "_base.html" %}
+{% block title %}Review{% endblock %}
+{% block banner %}SHARE MAINTENANCE — REVIEW AND POST{% endblock %}
+{% block content %}
+{#
+   The review screen is the natural stopping point for an unattended run. The
+   next control commits the change and is named accordingly, so the guardrail
+   layer classifies it as risky on caption alone.
+#}
+<table class="tbl1" cellpadding="3" cellspacing="0" width="480">
+  <tr><td class="c1" colspan="2">Confirm Details</td></tr>
+  <tr><td class="c2" width="150" nowrap>Member #:</td><td class="c3">{{ member.member_no }}</td></tr>
+  <tr><td class="c2" nowrap>Member Name:</td><td class="c3">{{ member.name }}</td></tr>
+  <tr><td class="c2" nowrap>Sub-Account Type:</td><td class="c3">{{ type_code }} - {{ type_label }}</td></tr>
+  <tr><td class="c2" nowrap>Nickname:</td><td class="c3">{{ nickname or '—' }}</td></tr>
+</table>
+
+<p style="color:#990000; margin-top:10px"><b>Posting this transaction cannot be reversed from this screen.</b></p>
+
+<form method="post" action="{{ base }}/subaccount/confirm" name="frmConfirm">
+  <input type="hidden" name="txtMbrNo" value="{{ member.member_no }}">
+  <input type="hidden" name="selType" value="{{ type_code }}">
+  <input type="submit" name="btnPost" value="Post Transaction">
+</form>
+<p><a href="{{ base }}/subaccount/new?member={{ member.member_no }}">Back</a></p>
+{% endblock %}

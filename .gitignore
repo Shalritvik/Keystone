@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+
+# Evidence from local runs is regenerated; the committed demo evidence is
+# added explicitly with `git add -f evidence/<run-id>`.
+evidence/*
+!evidence/.gitkeep
+!evidence/README.md
+
+*.part

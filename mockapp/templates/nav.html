@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<style type="text/css">
+body { font-family: Verdana, Arial, sans-serif; font-size: 11px; background: #ece9d8; margin: 0; }
+td { font-family: Verdana, Arial, sans-serif; font-size: 11px; }
+.c1 { background: {{ cfg.accent }}; color: #ffffff; font-weight: bold; padding: 4px 6px; }
+a { color: {{ cfg.accent }}; text-decoration: none; display: block; padding: 4px 8px; }
+a:hover { background: #d8d4c0; }
+</style>
+</head>
+<body>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td class="c1">{{ cfg.short }}</td></tr></table>
+<!-- Note: "Search" also appears as a submit button in contentFrame. Same
+     accessible name, different frame, different meaning. -->
+<a href="{{ base }}/lookup" target="contentFrame">Member Lookup</a>
+<a href="{{ base }}/lookup" target="contentFrame">Search</a>
+<a href="{{ base }}/subaccount/new" target="contentFrame">Open Sub-Account</a>
+<a href="{{ base }}/home" target="contentFrame">Home</a>
+<hr size="1">
+<div style="padding:4px 8px; color:#555555">v{{ cfg.product_version }}</div>
+</body>
+</html>

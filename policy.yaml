@@ -1,0 +1,49 @@
+# Safety policy for the grip automation system.
+#
+# This file is the guardrail contract. It is read by a human reviewer and is
+# the single authority on what the automation may do. The system refuses to
+# start without it.
+
+version: "1"
+
+# Default-deny. The agent may only act against origins listed here.
+allowed_origins:
+  - "http://127.0.0.1:8800"
+  - "http://localhost:8800"
+
+# Within an allowed origin, routes still have to match.
+allowed_route_patterns:
+  - "^/t/[a-z0-9_-]+/(home|nav|status|lookup|member/.*|subaccount/(new|review))/?$"
+  - "^/t/[a-z0-9_-]+/?$"
+
+# Explicitly out of bounds even though they share the origin. The fault
+# switchboard is an operator tool: an agent that could arm its own faults
+# could mask its own failures.
+denied_route_patterns:
+  - "^/_faults"
+  - "^/t/[a-z0-9_-]+/signin"
+  - "^/t/[a-z0-9_-]+/subaccount/confirm"
+
+allowed_actions: [click, type, select, navigate, read, wait]
+
+# No action verb is inherently risky here; risk is a property of the target.
+risky_actions: []
+
+# Risk lives in the caption. A click is safe; a click on "Post Transaction"
+# moves money. Matched against the control's accessible name.
+risky_control_patterns:
+  - '\b(post|submit)\s+(transaction|transfer|payment)\b'
+  - '\b(transfer|withdraw|disburse|close\s+account|delete|remove)\b'
+  - '\bconfirm\b'
+
+# Never, under any disposition.
+forbidden_control_patterns:
+  - '\b(wire|ach\s+origination|close\s+membership)\b'
+
+# What happens when a risky action comes up with no human watching.
+unattended_risky_disposition: escalate
+
+# Values of controls whose caption matches these never reach an artifact,
+# a log, or an evidence file.
+sensitive_field_patterns:
+  - '\b(password|passcode|pin|ssn|social\s*security|tax\s*id|secret|token|api[_\s-]?key)\b'

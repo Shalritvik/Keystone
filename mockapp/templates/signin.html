@@ -1,0 +1,24 @@
+{% extends "_base.html" %}
+{% block title %}Sign In{% endblock %}
+{% block banner %}{{ cfg.name }} — OPERATOR SIGN-IN{% endblock %}
+{% block content %}
+{#
+   Session expiry is the nastiest of the runtime conditions, because the app
+   answers 200 with a *different page* rather than an error. Replay detects it
+   by checkpoint failure plus a recognisable signature, and escalates rather
+   than typing a member number into a password field.
+#}
+{% if reason == 'expired' %}
+<table cellpadding="4" cellspacing="0" style="border:1px solid #990000; background:#fff4f4; margin-bottom:10px">
+  <tr><td class="c4" role="alert">Your session has expired. Sign in again to continue.</td></tr>
+</table>
+{% endif %}
+<form method="post" action="{{ base }}/signin" name="frmAuth">
+<table class="tbl1" cellpadding="3" cellspacing="0">
+  <tr><td class="c1" colspan="2">Authentication Required</td></tr>
+  <tr><td class="c2" width="110" nowrap>Operator ID:</td><td class="c3"><input type="text" name="txtOpId" size="16"></td></tr>
+  <tr><td class="c2" nowrap>Password:</td><td class="c3"><input type="password" name="txtPwd" size="16"></td></tr>
+</table>
+<p><input type="submit" name="btnAuth" value="Sign In"></p>
+</form>
+{% endblock %}

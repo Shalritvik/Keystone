@@ -1,0 +1,55 @@
+{% extends "_base.html" %}
+{% block title %}Member Lookup{% endblock %}
+{% block banner %}MEMBER INQUIRY — LOOKUP{% endblock %}
+{% block content %}
+
+{% if error %}
+<table cellpadding="4" cellspacing="0" style="border:1px solid #990000; background:#fff4f4; margin-bottom:10px">
+  <tr><td class="c4" role="alert">{{ error }}</td></tr>
+</table>
+{% endif %}
+
+<form method="post" action="{{ base }}/lookup" name="frmLookup">
+<table class="tbl1" cellpadding="3" cellspacing="0">
+  <tr><td class="c1" colspan="2">Search Criteria</td></tr>
+  {#
+     Field order comes from tenant configuration. Harbor Point reverses it.
+     Positional automation breaks here; accessible-name targeting does not.
+     Note there is not a single <label for> in this form — the caption is the
+     cell physically to the left of the input, which is how these applications
+     have always been built.
+  #}
+  {% for field in cfg.lookup_order %}
+    {% if field == 'member' %}
+  <tr>
+    <td class="c2" width="130" nowrap>{{ cfg.member_label }}</td>
+    <td class="c3"><input type="text" name="txtMbrNo" size="14" maxlength="10" value="{{ submitted|default('', true) }}"></td>
+  </tr>
+    {% else %}
+  <tr>
+    <td class="c2" width="130" nowrap>Branch:</td>
+    <td class="c3">
+      <select name="selBranch">
+        <option value="">— All Branches —</option>
+        <option value="001">001 - MAIN OFFICE</option>
+        <option value="003">003 - RIVERSIDE</option>
+        <option value="005">005 - NORTHGATE</option>
+      </select>
+    </td>
+  </tr>
+    {% endif %}
+  {% endfor %}
+</table>
+
+<table class="tbl2" cellpadding="6" cellspacing="0">
+  <tr>
+    <td><input type="submit" name="btnSrch" value="{{ search_caption }}"></td>
+    <td><input type="reset" name="btnClr" value="Clear"></td>
+  </tr>
+</table>
+</form>
+
+<p style="color:#555555; margin-top:14px">
+  Enter the member number and submit. Sample records on this system: 12345, 22881, 30014, 44120.
+</p>
+{% endblock %}

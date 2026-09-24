@@ -1,0 +1,12 @@
+{% extends "_base.html" %}
+{% block title %}Home{% endblock %}
+{% block banner %}{{ cfg.name }} — MEMBER SERVICES{% endblock %}
+{% block content %}
+<table class="tbl1" cellpadding="6" cellspacing="0" width="480">
+  <tr><td class="c1">Console</td></tr>
+  <tr><td class="c3">
+    <p>Select a function from the navigation panel.</p>
+    <p style="color:#555555">Host: ONLINE &nbsp; Release {{ cfg.product_version }}</p>
+  </td></tr>
+</table>
+{% endblock %}

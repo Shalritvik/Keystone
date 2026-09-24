@@ -1,0 +1,19 @@
+{% extends "_base.html" %}
+{% block title %}Not Entitled{% endblock %}
+{% block banner %}MEMBER INQUIRY — ACCESS RESTRICTED{% endblock %}
+{% block content %}
+{#
+   Also a business outcome rather than a failure: the system worked, and the
+   answer is "you may not see this". A caller needs to distinguish it from
+   "no such member", so it carries its own code.
+#}
+<table class="tbl1" cellpadding="6" cellspacing="0" width="480">
+  <tr><td class="c1">Authorisation</td></tr>
+  <tr><td class="c3">
+    <span class="c4" role="alert">OPERATOR NOT ENTITLED TO VIEW THIS RECORD</span>
+    <p>Record {{ member_no }} is flagged restricted. Escalate to a supervisor for access.</p>
+    <p>Host code: SEC-0703</p>
+  </td></tr>
+</table>
+<p style="margin-top:12px"><a href="{{ base }}/lookup">Return to Lookup</a></p>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "_base.html" %}
+{% block title %}Application Error{% endblock %}
+{% block banner %}APPLICATION ERROR{% endblock %}
+{% block content %}
+{# A hard failure: nothing the automation can conclude, nothing it can retry blindly. #}
+<table class="tbl1" cellpadding="6" cellspacing="0" width="480">
+  <tr><td class="c1">Unhandled Exception</td></tr>
+  <tr><td class="c3">
+    <span class="c4" role="alert">THE APPLICATION ENCOUNTERED AN UNEXPECTED CONDITION</span>
+    <p>Reference: {{ code }}</p>
+    <p>Contact the service desk with the reference above.</p>
+  </td></tr>
+</table>
+{% endblock %}

@@ -1,0 +1,19 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Frameset//EN" "http://www.w3.org/TR/html4/frameset.dtd">
+<html>
+<head>
+<title>{{ cfg.name }} — Member Services Console</title>
+</head>
+<!--
+  A frameset, not a layout choice anyone would make today, and precisely the
+  reason a locator must record which frame it belongs to: "Search" exists as a
+  link in the nav frame and as a button in the content frame.
+-->
+<frameset cols="180,*" border="1" frameborder="1">
+  <frame name="navFrame" src="{{ base }}/nav" scrolling="no">
+  <frameset rows="*,26" border="1">
+    <frame name="contentFrame" src="{{ base }}/home">
+    <frame name="statusFrame" src="{{ base }}/status" scrolling="no">
+  </frameset>
+  <noframes><body>This application requires frame support.</body></noframes>
+</frameset>
+</html>
