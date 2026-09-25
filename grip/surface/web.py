@@ -38,18 +38,26 @@ read-only field and an editable one are the same idiom -- a caption cell
 followed by a content cell. A ``<td>`` is treated as the "value" half of such
 a pair only when: its row contains an even number of plain cells (no nested
 interactive control anywhere in the row), and it sits at an odd position in
-that row. The label half's own text becomes its name; the value half's own
-text becomes ``AXNode.value`` and its *name* is inherited from the label.
+that row. The value half's own text becomes both its ``AXNode.value`` and,
+inherited, its *name*. The label half is not emitted as a node at all: its
+text is already carried as the value cell's name, so keeping it too would
+put two nodes at the same (role, name) key, with the label -- the one with
+no value -- landing at ordinal 0 by DOM order. That is precisely the wrong
+half for a locator built with the default ordinal to land on, so it is
+excluded at the source instead of guarded against downstream.
 
 What this gets wrong: it cannot distinguish a two-column label:value summary
 row from a same-shaped data grid row. The "Share & Loan Accounts" table in
 this app has four plain ``<td>`` cells per row (account number, type,
 balance, status) with no ``<th>`` or ``headers``/``id`` association -- to
-this heuristic that is structurally identical to two label:value pairs, so
-it misnames those cells (e.g. "type" ends up named after "account number").
-Nothing in this app's Phase 4 capability reads from that table, so it is a
-known, documented gap rather than a silent one: a real fix needs column
-headers, which this legacy idiom does not reliably provide either.
+this heuristic that is structurally identical to two label:value pairs. It
+therefore treats "account number" and "balance" as the *label* half of a
+pair and drops them from perception entirely (see the label-half skip
+below), leaving only "type" and "status" visible, misnamed after the cells
+that were just discarded. Nothing in this app's Phase 4 capability reads
+from that table, so it is a known, documented gap rather than a silent one:
+a real fix needs column headers, which this legacy idiom does not reliably
+provide either.
 
 The other thing it gets wrong: two controls with the same accessible name in
 different frames are genuinely ambiguous by name alone -- "Search" is a link
@@ -95,9 +103,11 @@ _SELECTOR = (
 
 # Single source of truth for role/name/value computation. See module
 # docstring for why this lives here instead of split across a CDP path and a
-# DOM-fallback path.
-_DESCRIBE_JS = """
-(el) => {
+# DOM-fallback path. Shared by both entry points below so there is exactly
+# one describeOne() -- _DESCRIBE_JS (single element, used by the `read`
+# action) and _DESCRIBE_ALL_JS (all matched elements in one round-trip, used
+# by _scan) must never compute a node's role/name/value differently.
+_HELPERS_JS = """
   function textOf(e) {
     return (e.innerText !== undefined ? e.innerText : (e.textContent || ''))
       .replace(/\\s+/g, ' ').trim();
@@ -128,20 +138,24 @@ _DESCRIBE_JS = """
   }
 
   // See module docstring: label:value pairing generalises the adjacent-cell
-  // heuristic to static content, not just form fields.
-  function pairedCellName(e) {
+  // heuristic to static content, not just form fields. Computed once per
+  // element and reused by name/value/skip so the three never disagree about
+  // which half of a pair `e` is.
+  function pairInfo(e) {
     const tag = e.tagName.toLowerCase();
-    if (tag !== 'td' && tag !== 'th') return null;
+    if (tag !== 'td' && tag !== 'th') return { isLabel: false, isValue: false, label: null };
     const row = e.parentElement;
-    if (!row) return null;
+    if (!row) return { isLabel: false, isValue: false, label: null };
     const cells = Array.from(row.children).filter(c => c.tagName === 'TD' || c.tagName === 'TH');
     const idx = cells.indexOf(e);
     const hasControl = c => !!c.querySelector('input,select,textarea,button,a[href]');
-    if (cells.length >= 2 && cells.length % 2 === 0 && !cells.some(hasControl) && idx % 2 === 1) {
+    const isPairRow = cells.length >= 2 && cells.length % 2 === 0 && !cells.some(hasControl);
+    if (!isPairRow) return { isLabel: false, isValue: false, label: null };
+    if (idx % 2 === 1) {
       const label = textOf(cells[idx - 1]);
-      return label || null;
+      return { isLabel: false, isValue: !!label, label: label || null };
     }
-    return null;
+    return { isLabel: true, isValue: false, label: null };
   }
 
   function computeName(e) {
@@ -175,8 +189,8 @@ _DESCRIBE_JS = """
     if (title && title.trim()) return title.trim();
     const placeholder = e.getAttribute('placeholder');
     if (placeholder && placeholder.trim()) return placeholder.trim();
-    const paired = pairedCellName(e);
-    if (paired) return paired;
+    const pair = pairInfo(e);
+    if (pair.isValue) return pair.label;
     // A <select>'s rendered text is the concatenation of every <option> --
     // that is its *content*, not its name, so it never counts as "text
     // content" for naming purposes (browsers agree: nothing computes a
@@ -196,7 +210,16 @@ _DESCRIBE_JS = """
     return null;
   }
 
-  function computeValue(e) {
+  // `value` is "the content this node exists to convey" -- for a control
+  // bound to an external label (input/select/textarea, a paired value cell)
+  // that's its current content, distinct from its name. For everything else
+  // read() has no separate concept to fall back to, so plain content roles
+  // (status/alert/heading/an unpaired cell) report their own text as value
+  // too, rather than making read() special-case them by guessing from name.
+  const CONTENT_VALUE_ROLES = new Set([
+    'status', 'alert', 'alertdialog', 'heading', 'label', 'columnheader',
+  ]);
+  function computeValue(e, role) {
     const tag = e.tagName.toLowerCase();
     if (tag === 'input') {
       const type = (e.getAttribute('type') || 'text').toLowerCase();
@@ -211,7 +234,14 @@ _DESCRIBE_JS = """
       return opt ? textOf(opt) : '';
     }
     if (tag === 'td' || tag === 'th') {
-      return pairedCellName(e) ? textOf(e) : null;
+      const pair = pairInfo(e);
+      if (pair.isLabel) return null;  // its text is already the paired value's name
+      const t = textOf(e);
+      return t || null;
+    }
+    if (CONTENT_VALUE_ROLES.has(role)) {
+      const t = textOf(e);
+      return t || null;
     }
     return null;
   }
@@ -254,26 +284,73 @@ _DESCRIBE_JS = """
     return { roles, name };
   }
 
-  const tag = el.tagName.toLowerCase();
-  // A <td>/<th> that exists only to hold an interactive control is pure
-  // layout -- the control itself is the meaningful node, so the wrapping
-  // cell would just be a name-duplicate of it. Skip emitting it.
-  const isLayoutCell = (tag === 'td' || tag === 'th') &&
-    !!el.querySelector('input,select,textarea,button,a[href]');
-  const anc = ancestorInfo(el);
-  return {
-    role: computeRole(el),
-    name: computeName(el),
-    value: computeValue(el),
-    checked: computeChecked(el),
-    required: !!(el.required || el.getAttribute('aria-required') === 'true'),
-    invalid: (el.getAttribute('aria-invalid') === 'true') ||
-             (typeof el.checkValidity === 'function' && !el.checkValidity()),
-    skip: isLayoutCell,
-    cssHint: cssHint(el),
-    ancestorRoles: anc.roles,
-    ancestorName: anc.name,
-  };
+  function isVisible(e) {
+    // offsetParent-based checks (the usual shortcut) misreport `position:
+    // fixed` elements as hidden -- exactly what this app's interstitial
+    // dialog uses -- so visibility is judged from computed style plus an
+    // actual laid-out box instead.
+    const style = getComputedStyle(e);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+      return false;
+    }
+    const rects = e.getClientRects();
+    return rects.length > 0 && rects[0].width > 0 && rects[0].height > 0;
+  }
+
+  function isDisabled(e) {
+    if ('disabled' in e && e.disabled) return true;
+    return e.getAttribute('aria-disabled') === 'true';
+  }
+
+  function describeOne(el) {
+    const tag = el.tagName.toLowerCase();
+    const role = computeRole(el);
+    // A <td>/<th> that exists only to hold an interactive control is pure
+    // layout -- the control itself is the meaningful node, so the wrapping
+    // cell would just be a name-duplicate of it. Skip it. Likewise skip the
+    // *label* half of a value pair: its text is already carried as the value
+    // cell's name (see pairInfo), so keeping it too would give the pair's
+    // name two nodes -- one of them (the label, ordinal 0, by DOM order)
+    // with no value, which is exactly the wrong one for an extraction step
+    // to land on by default.
+    const isLayoutCell = (tag === 'td' || tag === 'th') &&
+      !!el.querySelector('input,select,textarea,button,a[href]');
+    const isLabelHalf = pairInfo(el).isLabel;
+    const anc = ancestorInfo(el);
+    return {
+      role: role,
+      name: computeName(el),
+      value: computeValue(el, role),
+      checked: computeChecked(el),
+      required: !!(el.required || el.getAttribute('aria-required') === 'true'),
+      invalid: (el.getAttribute('aria-invalid') === 'true') ||
+               (typeof el.checkValidity === 'function' && !el.checkValidity()),
+      skip: isLayoutCell || isLabelHalf,
+      cssHint: cssHint(el),
+      ancestorRoles: anc.roles,
+      ancestorName: anc.name,
+    };
+  }
+"""
+
+# Playwright's evaluate() takes exactly one function expression, so the
+# shared helpers have to live *inside* each entry point's body rather than
+# alongside it as separate top-level declarations.
+
+# Single-element entry point: used by the `read` action, which already has
+# the exact ElementHandle it wants to re-describe.
+_DESCRIBE_JS = "(el) => {\n" + _HELPERS_JS + "\n  return describeOne(el);\n}"
+
+# Batch entry point: used by _scan(). Folding visibility and disabled-ness
+# into this one call is what collapses perception from three round-trips per
+# element down to two round-trips per *frame* -- see _scan()'s docstring.
+_DESCRIBE_ALL_JS = "(elements) => {\n" + _HELPERS_JS + """
+  return elements.map((el) => {
+    const d = describeOne(el);
+    d.visible = isVisible(el);
+    d.disabled = isDisabled(el);
+    return d;
+  });
 }
 """
 
@@ -343,12 +420,39 @@ class PlaywrightSurface(Surface):
                 return frame
         return None
 
+    async def _dispose_ref_map(self) -> None:
+        """Release the previous scan's handles browser-side.
+
+        Each ``_scan()`` call replaces ``self._ref_map`` wholesale; letting
+        the Python dict just get garbage-collected does not reliably (or
+        promptly) tell the browser to free the handle it backs. A discovery
+        run doing two or three observations per step, dozens of nodes per
+        observation, over 25 steps otherwise leaks thousands of handles.
+        """
+        for handle in self._ref_map.values():
+            try:
+                await handle.dispose()
+            except PlaywrightError:
+                pass
+        self._ref_map = {}
+
     async def _scan(self) -> tuple[list[AXNode], dict[str, ElementHandle]]:
         """Walk every live frame once. The single perception pass both
 
         ``observe()`` and ``resolve()`` build on, so there is exactly one
         place that decides what counts as a node.
+
+        Per element this used to cost three round-trips (``is_visible``,
+        ``evaluate``, ``is_disabled``). Visibility and disabled-ness are now
+        folded into the one ``_DESCRIBE_JS`` batch call below, so each frame
+        costs two round-trips total -- one ``evaluate`` for every matched
+        element's data, one ``query_selector_all`` for the handles to act on
+        later -- instead of three per element. The two calls only agree on
+        ordering because they run back-to-back against the same selector
+        with no intervening await that could let the page mutate between
+        them.
         """
+        await self._dispose_ref_map()
         nodes: list[AXNode] = []
         ref_map: dict[str, ElementHandle] = {}
         # Duplicate (role, name, frame, ancestor) tuples get an increasing
@@ -361,20 +465,21 @@ class PlaywrightSurface(Surface):
             if frame.is_detached():
                 continue
             try:
+                descs = await frame.eval_on_selector_all(_SELECTOR, _DESCRIBE_ALL_JS)
                 handles = await frame.query_selector_all(_SELECTOR)
             except PlaywrightError:
                 continue
-            frame_path = self._frame_path(frame)
-            for handle in handles:
-                try:
-                    if not await handle.is_visible():
-                        continue
-                    desc = await handle.evaluate(_DESCRIBE_JS)
-                    disabled = await handle.is_disabled()
-                except PlaywrightError:
-                    continue
+            if len(descs) != len(handles):
+                # The DOM changed between the two round-trips (rare, but
+                # possible on a page with live updates) -- the index
+                # alignment this depends on no longer holds, so skip this
+                # frame for this scan rather than risk misattributing a
+                # description to the wrong handle.
+                continue
 
-                if desc.get("skip"):
+            frame_path = self._frame_path(frame)
+            for desc, handle in zip(descs, handles):
+                if desc.get("skip") or not desc.get("visible"):
                     continue
 
                 role = desc["role"]
@@ -394,7 +499,7 @@ class PlaywrightSurface(Surface):
                     frame_path=frame_path,
                     ancestor_roles=ancestor_roles,
                     ancestor_name=desc["ancestorName"],
-                    disabled=disabled,
+                    disabled=desc["disabled"],
                     required=desc["required"],
                     invalid=desc["invalid"],
                     checked=desc["checked"],
@@ -452,7 +557,7 @@ class PlaywrightSurface(Surface):
                     wait_until="domcontentloaded",
                     timeout=self._action_timeout_s * 1000,
                 )
-                await asyncio.sleep(0.1)  # let post-load rendering settle
+                await asyncio.sleep((request.settle_ms / 1000) if request.settle_ms else 0.1)
                 return ActionOutcome(ok=True, duration_ms=self._elapsed_ms(start))
 
             handle = self._ref_map.get(request.ref) if request.ref else None
@@ -463,12 +568,17 @@ class PlaywrightSurface(Surface):
                     error_kind="not_found",
                 )
 
+            if request.action in ("type", "select") and request.value is None:
+                return ActionOutcome(
+                    ok=False, detail=f"{request.action} requires a value", error_kind="error"
+                )
+
             timeout_ms = (request.timeout_s or self._action_timeout_s) * 1000
 
             if request.action == "click":
                 await handle.click(timeout=timeout_ms)
             elif request.action == "type":
-                await handle.fill(request.value or "", timeout=timeout_ms)
+                await handle.fill(request.value, timeout=timeout_ms)
             elif request.action == "select":
                 try:
                     await handle.select_option(label=request.value, timeout=timeout_ms)
@@ -480,13 +590,28 @@ class PlaywrightSurface(Surface):
                 desc = await handle.evaluate(_DESCRIBE_JS)
                 value = desc.get("value")
                 if value is None:
-                    value = desc.get("name")
+                    # No silent substitution of `name` here: for a plain
+                    # label cell or an empty field that would report a
+                    # caption (or nothing) as if it were the read value --
+                    # a wrong answer that passes every check. `value` is
+                    # already defined (see _DESCRIBE_JS) to equal `name` for
+                    # every node type where the two are legitimately the
+                    # same thing (status/alert/heading/an unpaired cell), so
+                    # a `None` here means there truly is nothing to read.
+                    return ActionOutcome(
+                        ok=False,
+                        detail="target has no readable value",
+                        error_kind="not_found",
+                        duration_ms=self._elapsed_ms(start),
+                    )
                 return ActionOutcome(ok=True, read_value=value, duration_ms=self._elapsed_ms(start))
             else:
                 return ActionOutcome(
                     ok=False, detail=f"unsupported action {request.action!r}", error_kind="error"
                 )
 
+            if request.settle_ms:
+                await asyncio.sleep(request.settle_ms / 1000)
             return ActionOutcome(ok=True, duration_ms=self._elapsed_ms(start))
 
         except PlaywrightTimeoutError:
@@ -496,8 +621,32 @@ class PlaywrightSurface(Surface):
             )
         except PlaywrightError as exc:
             return ActionOutcome(
-                ok=False, detail=str(exc), error_kind="error", duration_ms=self._elapsed_ms(start)
+                ok=False,
+                detail=str(exc),
+                error_kind=self._classify_error(exc),
+                duration_ms=self._elapsed_ms(start),
             )
+
+    _STALE_MARKERS = (
+        "detached",
+        "not attached to the dom",
+        "target closed",
+        "context was destroyed",
+        "execution context was destroyed",
+    )
+
+    @classmethod
+    def _classify_error(cls, exc: PlaywrightError) -> str:
+        """A ref from a page that has since navigated is a stale reference,
+
+        not a surface malfunction -- the correct response is to re-resolve
+        the locator, not to treat the run as broken. Both look identical as
+        raw Playwright exceptions, so the message is the only signal.
+        """
+        message = str(exc).lower()
+        if any(marker in message for marker in cls._STALE_MARKERS):
+            return "not_found"
+        return "error"
 
     # -- resolution ---------------------------------------------------------
 
@@ -576,11 +725,19 @@ class PlaywrightSurface(Surface):
     # -- misc ---------------------------------------------------------
 
     async def screenshot(self, path: str) -> bool:
-        part = f"{path}.part"
+        # Capturing to bytes and writing them ourselves -- rather than
+        # passing `path=` straight to Playwright -- is what the atomic
+        # .part-then-rename convention actually requires: Playwright infers
+        # the image format from the path's extension, and ".part" is not a
+        # format it recognises, so every path-based call here would fail.
+        suffix = Path(path).suffix.lstrip(".").lower()
+        img_type = "jpeg" if suffix in ("jpg", "jpeg") else "png"
         try:
-            await self._page.screenshot(path=part, full_page=True)
+            data = await self._page.screenshot(full_page=True, type=img_type)
         except PlaywrightError:
             return False
+        part = Path(f"{path}.part")
+        part.write_bytes(data)
         os.replace(part, path)
         return True
 
@@ -588,6 +745,7 @@ class PlaywrightSurface(Surface):
         return self._page.url
 
     async def close(self) -> None:
+        await self._dispose_ref_map()
         await self._context.close()
         await self._browser.close()
         await self._playwright.stop()

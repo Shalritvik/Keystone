@@ -251,6 +251,14 @@ class ActionRequest:
     value: str | None = None
     url: str | None = None
     timeout_s: float | None = None
+    settle_ms: int = 0
+    """Extra quiet period the surface should honour after the action
+
+    succeeds, carried straight from ``Step.settle_ms``. This is a fixed
+    delay, not a wait-for-condition — the durable version (retry the
+    checkpoint within a window) belongs to the replay engine, not the
+    surface; this only keeps the schema field from being silently ignored.
+    """
     sensitive: bool = False
     """If true the value must never appear in a log, trace, or evidence file."""
 
