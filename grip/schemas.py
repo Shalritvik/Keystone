@@ -123,6 +123,19 @@ class AXLocator(BaseModel):
             return None
         return " ".join(self.name.split()).strip().casefold()
 
+    def identity_key(self) -> tuple:
+        """Fields that identify *which control* this is, excluding rationale
+
+        and fallbacks -- two locators aimed at the same control legitimately
+        carry different rationale text (e.g. a step's target vs. that same
+        step's checkpoint re-describing why it re-asserts against it), so
+        plain equality is the wrong test for "is this the same control."
+        """
+        return (
+            self.role, self.normalized_name(), self.name_match,
+            tuple(self.frame_path), tuple(self.ancestor_roles), self.ancestor_name, self.ordinal,
+        )
+
     def describe(self) -> str:
         bits = [self.role]
         if self.name:
@@ -502,7 +515,23 @@ class CapabilityArtifact(BaseModel):
             if step.index in override.disabled_steps:
                 continue
             if step.index in override.step_targets:
-                step.target = override.step_targets[step.index]
+                original_target = step.target
+                new_target = override.step_targets[step.index]
+                step.target = new_target
+                # A step's own checkpoint commonly re-asserts against the
+                # same control it just acted on (e.g. "the field now holds
+                # what we typed"). If that checkpoint's locator is the same
+                # control as the target we just overrode, it needs the same
+                # patch -- otherwise the override silently only half-applies:
+                # the action succeeds against the tenant's control, and the
+                # very next line fails asserting against the original one.
+                if (
+                    step.checkpoint is not None
+                    and step.checkpoint.locator is not None
+                    and original_target is not None
+                    and step.checkpoint.locator.identity_key() == original_target.identity_key()
+                ):
+                    step.checkpoint.locator = new_target
             kept.append(step)
         clone.steps = kept
         return clone
