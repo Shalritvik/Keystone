@@ -560,6 +560,17 @@ class PlaywrightSurface(Surface):
                 await asyncio.sleep((request.settle_ms / 1000) if request.settle_ms else 0.1)
                 return ActionOutcome(ok=True, duration_ms=self._elapsed_ms(start))
 
+            if request.action == "wait":
+                # The only other action, besides navigate, that isn't
+                # addressed at a specific element -- it acts on the page,
+                # not a ref, and must not be routed through the ref-lookup
+                # below (that check previously ran unconditionally and
+                # rejected every wait(ref=None) call, which is exactly how
+                # discovery's agent issues it, before this action's own
+                # branch was ever reached).
+                await asyncio.sleep(request.timeout_s or self._settle_timeout_s)
+                return ActionOutcome(ok=True, duration_ms=self._elapsed_ms(start))
+
             handle = self._ref_map.get(request.ref) if request.ref else None
             if handle is None:
                 return ActionOutcome(
@@ -584,8 +595,6 @@ class PlaywrightSurface(Surface):
                     await handle.select_option(label=request.value, timeout=timeout_ms)
                 except PlaywrightError:
                     await handle.select_option(value=request.value, timeout=timeout_ms)
-            elif request.action == "wait":
-                await asyncio.sleep(request.timeout_s or self._settle_timeout_s)
             elif request.action == "read":
                 desc = await handle.evaluate(_DESCRIBE_JS)
                 value = desc.get("value")

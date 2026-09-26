@@ -42,12 +42,20 @@ from grip.conditions import evaluate as evaluate_condition
 from grip.config import Policy, Settings
 from grip.discovery.compiler import DiscoveredStep, compile_artifact
 from grip.discovery.prompts import ACTION_SCHEMA, SYSTEM_PROMPT, render_user_prompt
+from grip.escalation.controller import EscalationController
 from grip.evidence import EvidenceWriter, ModelDecision, RunFinished, RunStarted, StepFinished, StepStarted
 from grip.guardrails import GuardedSurface, Guardrails
 from grip.llm import LLMClient, LLMError
 from grip.replay.engine import ReplayEngine
 from grip.schemas import CapabilityArtifact
 from grip.surface.base import ActionRequest
+
+# Bounds how many times a single discovery run will pause for a human before
+# giving up -- the same "never unbounded" rule replay's escalation retry
+# enforces (see grip/replay/engine.py's max_escalation_attempts, added after
+# finding live that an unbounded version loops forever if the human resumes
+# without actually having fixed anything).
+MAX_DISCOVERY_ESCALATIONS = 2
 from grip.surface.web import PlaywrightSurface
 
 
@@ -79,11 +87,23 @@ async def _run_loop(
     settings: Settings,
     writer: EvidenceWriter,
     run_id: str,
+    escalation_controller: EscalationController | None = None,
 ) -> tuple[list[DiscoveredStep], str]:
     """Returns (trace, stopped_reason). stopped_reason is one of:
 
     "model_done", "max_steps", "timeout", "stuck_no_progress",
     "repeated_failures".
+
+    A stuck condition pauses for a human (bounded by
+    ``MAX_DISCOVERY_ESCALATIONS``) when a controller is given -- "the agent
+    is stuck during discovery" is one of the brief's own three named
+    escalation triggers, not just a replay-time concern. The human's role
+    here is narrower than replay's handoff: they can clear whatever is
+    blocking the page (dismiss an unexpected dialog, log back in) and hand
+    back to the model, but they cannot signal "I finished the goal myself"
+    -- discovery's whole output is a *recorded trace of the model's own
+    decisions*, so the model still has to be the one to actually observe,
+    read, and declare done for the result to compile into anything.
     """
     trace: list[DiscoveredStep] = []
     prev_rendered: str | None = None
@@ -91,16 +111,36 @@ async def _run_loop(
     consecutive_failures = 0
     start = time.monotonic()
     step_index = 0
+    escalations_used = 0
 
     while True:
+        stuck_reason: str | None = None
         if step_index >= settings.max_steps:
-            return trace, "max_steps"
-        if time.monotonic() - start >= settings.run_timeout_s:
-            return trace, "timeout"
-        if unchanged_count >= settings.max_consecutive_no_progress:
-            return trace, "stuck_no_progress"
-        if consecutive_failures >= settings.max_consecutive_no_progress:
-            return trace, "repeated_failures"
+            stuck_reason = "max_steps"
+        elif time.monotonic() - start >= settings.run_timeout_s:
+            stuck_reason = "timeout"
+        elif unchanged_count >= settings.max_consecutive_no_progress:
+            stuck_reason = "stuck_no_progress"
+        elif consecutive_failures >= settings.max_consecutive_no_progress:
+            stuck_reason = "repeated_failures"
+
+        if stuck_reason is not None:
+            if escalation_controller is not None and escalations_used < MAX_DISCOVERY_ESCALATIONS:
+                escalations_used += 1
+                await escalation_controller.raise_intervention(
+                    run_id=run_id, capability_id=None, goal=goal, step_index=step_index,
+                    reason=f"discovery stuck: {stuck_reason}", screenshot_dir=writer.screenshot_dir(),
+                )
+                # Give the model a fresh chance -- the human may have
+                # cleared whatever was blocking progress. If they resumed
+                # without changing anything, the same condition reappears
+                # and this bounded loop ends via escalations_used, not by
+                # running forever (verified live for replay's equivalent
+                # bound; the mechanism here is identical).
+                unchanged_count = 0
+                consecutive_failures = 0
+                continue
+            return trace, stuck_reason
 
         observation = await surface.observe()
         rendered = observation.render()
@@ -217,6 +257,7 @@ async def discover(
     settings: Settings | None = None,
     policy: Policy | None = None,
     verify_params: dict[str, str] | None = None,
+    escalation_controller: EscalationController | None = None,
 ) -> DiscoveryOutcome:
     settings = settings or Settings.from_env()
     policy = policy or Policy.load(settings.policy_path)
@@ -243,7 +284,10 @@ async def discover(
             writer.write(RunFinished(run_id=run_id, status="failure", duration_ms=int((time.monotonic() - start) * 1000)))
             return DiscoveryOutcome(ok=False, reason=f"could not reach entry url: {nav.detail}", discovery_run_id=run_id)
 
-        trace, stopped_reason = await _run_loop(guarded, llm, guardrails, goal, settings, writer, run_id)
+        trace, stopped_reason = await _run_loop(
+            guarded, llm, guardrails, goal, settings, writer, run_id,
+            escalation_controller=escalation_controller,
+        )
         writer.write(
             RunFinished(
                 run_id=run_id,

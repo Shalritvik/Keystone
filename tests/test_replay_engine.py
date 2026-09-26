@@ -142,3 +142,87 @@ async def test_rejects_unknown_param(engine, artifact):
 
     with pytest.raises(ReplayError):
         await engine.run(artifact, {"member_id": "12345", "extra": "x"})
+
+
+@pytest.mark.asyncio
+async def test_a_recovery_action_that_itself_fails_is_not_falsely_reported_as_recovered(
+    engine, mockapp_server
+):
+    """Regression test: _try_recover discarded the ActionOutcome of its own
+
+    recovery action, so a recovery whose action itself fails (wrong action
+    type for the target, a bad locator that still resolves to *something*,
+    etc.) was unconditionally reported as "recovered" -- the caller would
+    then retry the original step against an unchanged obstacle, and the
+    evidence trail would falsely claim the obstacle was cleared.
+    """
+    from grip.schemas import (
+        AXLocator, CapabilityArtifact, Condition, RecoveryRule, Step, SurfaceBinding, ValueSource,
+    )
+
+    field = AXLocator(role="textbox", name="Member #:", name_match="normalized", frame_path=[], ordinal=0)
+    dialog = AXLocator(role="dialog", name="System Message", name_match="exact", frame_path=[], ordinal=0)
+    continue_button = AXLocator(role="button", name="Continue", name_match="normalized", frame_path=[], ordinal=0)
+
+    broken_artifact = CapabilityArtifact(
+        capability_id="broken_recovery_test", version=1, title="t", description="d", goal="g",
+        surface=SurfaceBinding(kind="web", entry=f"{mockapp_server}/t/pinnacle/lookup"),
+        steps=[Step(index=0, action="type", target=field, value=ValueSource(kind="literal", value="12345"))],
+        success=Condition(kind="ax_present", locator=field, description="field present"),
+        recoveries=[
+            RecoveryRule(
+                code="BROKEN_RECOVERY",
+                description="deliberately the wrong action type for its target (select on a button)",
+                detect=Condition(kind="ax_present", locator=dialog, description="interstitial present"),
+                action="select", target=continue_button, value="x", max_attempts=2,
+            )
+        ],
+    )
+
+    httpx.post(f"{mockapp_server}/_faults/interstitial/arm")
+    result = await engine.run(broken_artifact, {})
+
+    assert all(s.recoveries_applied == [] for s in result.steps), (
+        "a recovery action that itself failed must never appear in recoveries_applied"
+    )
+
+
+@pytest.mark.asyncio
+async def test_required_output_with_non_participating_capture_group_fails_loudly(engine):
+    """Regression test: re.search("(X)?", "4,182.55") matches (the group is
+
+    optional) but group(1) is None -- `match` was truthy so the old code
+    never reached the "no match" required-check, and a required output
+    silently came back None inside a status="success" result. Verified
+    live before this fix existed.
+    """
+    from grip.schemas import (
+        AXLocator, CapabilityArtifact, Condition, Extraction, OutputSpec, Step, SurfaceBinding, ValueSource,
+    )
+
+    balance = AXLocator(role="cell", name="Regular Savings Balance:", name_match="normalized", frame_path=[], ordinal=0)
+    field = AXLocator(role="textbox", name="Member #:", name_match="normalized", frame_path=[], ordinal=0)
+    search = AXLocator(role="button", name="Search", name_match="normalized", frame_path=[], ordinal=0)
+
+    broken_artifact = CapabilityArtifact(
+        capability_id="capture_group_test", version=1, title="t", description="d", goal="g",
+        surface=SurfaceBinding(kind="web", entry="http://127.0.0.1:8800/t/pinnacle/lookup"),
+        steps=[
+            Step(index=0, action="type", target=field, value=ValueSource(kind="param", param="member_id")),
+            Step(index=1, action="click", target=search),
+        ],
+        params=[{"name": "member_id", "required": True}],
+        outputs=[
+            OutputSpec(
+                name="regular_savings_balance", required=True,
+                source=Extraction(locator=balance, attribute="value", capture_pattern=r"(XYZ)?"),
+            )
+        ],
+        success=Condition(kind="ax_present", locator=balance, description="balance present"),
+    )
+
+    result = await engine.run(broken_artifact, {"member_id": "12345"})
+
+    assert result.status == "failure"
+    assert result.failure_kind == "output_missing"
+    assert result.outputs == {}

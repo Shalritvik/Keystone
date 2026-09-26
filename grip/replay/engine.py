@@ -117,6 +117,15 @@ class _RunContext:
     escalation_controller: EscalationController | None = None
     captures: dict[str, str] = field(default_factory=dict)
     recovery_counts: dict[str, int] = field(default_factory=dict)
+    escalation_counts: dict[int, int] = field(default_factory=dict)
+    """Keyed by step index. Unlike RecoveryRule (bounded by its own declared
+
+    max_attempts), an escalation has no declared cap of its own -- without
+    one here, an operator resuming without actually having fixed anything
+    (a mis-click, forgetting the manual step, a flaky "human") re-triggers
+    the identical intervention forever: verified live, 5 resume-without-
+    action cycles produced 5 identical escalations with no sign of stopping.
+    """
 
 
 class ReplayEngine:
@@ -135,10 +144,12 @@ class ReplayEngine:
         evidence_dir: Path | str,
         *,
         escalation_controller: EscalationController | None = None,
+        max_escalation_attempts: int = 3,
     ) -> None:
         self._surface = surface
         self._evidence_dir = Path(evidence_dir)
         self._escalation_controller = escalation_controller
+        self._max_escalation_attempts = max_escalation_attempts
 
     # -- public entry point --------------------------------------------
 
@@ -383,7 +394,24 @@ class ReplayEngine:
         moved on to a confirmation screen), the retry fails on a target
         that no longer exists -- a spurious hard failure immediately after
         a successful intervention.
+
+        Bounded by ``max_escalation_attempts`` regardless of whether a
+        controller is wired in: an operator resuming without having
+        actually resolved anything (a mis-click, a forgotten manual step)
+        would otherwise re-raise the identical intervention forever --
+        verified live before this bound existed.
         """
+        attempts = ctx.escalation_counts.get(step.index, 0)
+        if attempts >= self._max_escalation_attempts:
+            message = (
+                f"exceeded {self._max_escalation_attempts} escalation attempt(s) for this step "
+                f"without it resolving: {description}"
+            )
+            self._write_step_failed(ctx, step, step_start, recoveries_applied,
+                                     observed=message, detail=message)
+            raise _EscalationSignal(code=code, description=message)
+        ctx.escalation_counts[step.index] = attempts + 1
+
         if ctx.escalation_controller is None:
             self._write_step_failed(ctx, step, step_start, recoveries_applied,
                                      observed=description, detail=description)
@@ -483,16 +511,38 @@ class ReplayEngine:
             if not holds:
                 continue
 
-            value = self._resolve_value(ValueSource(kind="literal", value=rule.value), ctx) if rule.value else None
+            # `rule.value` is `str | None`; a rule that intentionally clears
+            # a field with value="" is a real, distinct case from "no value
+            # at all" (value=None) -- `is not None` is required here, not
+            # plain truthiness, or an empty-string literal silently becomes
+            # None and a "type" action then fails its own value-required
+            # check for a reason this rule never intended.
+            value = (
+                self._resolve_value(ValueSource(kind="literal", value=rule.value), ctx)
+                if rule.value is not None else None
+            )
             if rule.target is not None:
                 ref, how = await self._surface.resolve(rule.target)
                 if ref is None:
                     continue  # declared but not actually reachable right now; try the next rule
-                await self._surface.act(ActionRequest(action=rule.action, ref=ref, locator=rule.target, value=value))
+                outcome = await self._surface.act(
+                    ActionRequest(action=rule.action, ref=ref, locator=rule.target, value=value)
+                )
             else:
-                await self._surface.act(ActionRequest(action=rule.action, value=value))
+                outcome = await self._surface.act(ActionRequest(action=rule.action, value=value))
 
+            # Counts against max_attempts either way -- a rule whose action
+            # never works (bad target, wrong action type) must not be
+            # retried unboundedly by the caller's retry-the-step loop.
             ctx.recovery_counts[rule.code] = used + 1
+            if not outcome.ok:
+                # The obstacle almost certainly still holds; falsely
+                # reporting "recovered" here previously made the caller
+                # retry the original step against an unchanged blocker,
+                # burning a cycle before eventually failing anyway with the
+                # real cause hidden. Try the next declared rule instead.
+                continue
+
             recoveries_applied.append(rule.code)
             return True
         return False
@@ -534,6 +584,17 @@ class ReplayEngine:
             raw_value = outcome.read_value
             if spec.source.capture_pattern and raw_value is not None:
                 match = re.search(spec.source.capture_pattern, raw_value)
+                # A match with a capturing group that didn't participate
+                # (e.g. an optional group in a pattern that otherwise
+                # matched) makes group(1) None even though `match` itself
+                # is truthy -- checked explicitly rather than folded into
+                # the `elif spec.required` below, which only ever ran when
+                # the overall regex failed to match at all. Without this, a
+                # required output could silently come back None inside a
+                # status="success" result, violating the documented
+                # contract that a missing required value is a hard failure.
+                if match and match.groups() and match.group(1) is None:
+                    match = None
                 if match:
                     raw_value = match.group(1) if match.groups() else match.group(0)
                 elif spec.required:

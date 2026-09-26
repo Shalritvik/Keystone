@@ -138,3 +138,35 @@ async def test_attended_handoff_resumes_and_completes(guarded_surface, tmp_path,
     posted_step = next(s for s in result.steps if s.index == 3)
     assert posted_step.status == "recovered"
     assert "human intervention" in posted_step.detail
+
+
+@pytest.mark.asyncio
+async def test_resuming_without_resolving_anything_is_bounded_not_infinite(guarded_surface, tmp_path, artifact):
+    """Regression test: found live, resuming without actually performing the
+
+    risky action re-triggered the identical intervention with no cap --
+    5 resume-without-action cycles produced 5 escalations with no sign of
+    stopping. max_escalation_attempts must bound this and end the run.
+    """
+    writer = EvidenceWriter(tmp_path / "controller-log")
+    controller = EscalationController(guarded_surface, writer)
+    engine = ReplayEngine(guarded_surface, tmp_path, escalation_controller=controller, max_escalation_attempts=3)
+
+    run_task = asyncio.create_task(engine.run(artifact, {"member_id": "12345"}))
+
+    escalations = 0
+    while not run_task.done():
+        while controller.pending is None and not run_task.done():
+            await asyncio.sleep(0.02)
+        if run_task.done():
+            break
+        escalations += 1
+        assert escalations <= 3, "escalation was not bounded -- looped past max_escalation_attempts"
+        controller.resume(note="resumed without doing anything")
+
+    result = await run_task
+    writer.close()
+
+    assert escalations == 3
+    assert result.status == "escalated"
+    assert "exceeded 3 escalation attempt" in result.message
