@@ -69,7 +69,13 @@ class Settings:
 
     # Agent loop stopping conditions (3.1).
     max_steps: int = 25
-    run_timeout_s: float = 300.0
+    # Measured live against the NIM free tier: identical back-to-back calls
+    # to the same model ranged from ~2s to ~48s, driven by shared-queue
+    # load, not model choice or prompt size (both tested and ruled out).
+    # 300s could mean the run times out on step 6 through no fault of the
+    # agent -- 1200s gives headroom for max_steps calls near the observed
+    # worst case without pretending the variance isn't there.
+    run_timeout_s: float = 1200.0
     max_consecutive_no_progress: int = 3
 
     # Surface behaviour.
