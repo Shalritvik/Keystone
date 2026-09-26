@@ -54,23 +54,42 @@ class LLMClient:
         """
         return self._client is not None
 
-    async def complete_json(self, *, system: str, user: str) -> dict[str, Any]:
+    async def complete_json(
+        self, *, system: str, user: str, schema: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """One structured-JSON completion. Discovery's only door to the model.
 
         Temperature is pinned to ``Settings.llm_temperature`` (0 by default)
         because discovery's action choice needs to be reproducible enough to
-        debug, not creative. ``response_format={"type": "json_object"}``
-        constrains the model to a JSON object rather than free text; the
-        caller (grip/discovery/prompts.py) is responsible for describing the
-        exact shape it wants inside the prompt and validating what comes
-        back -- this method's contract is only "valid JSON," not "valid
-        action."
+        debug, not creative.
+
+        Passing ``schema`` (a JSON Schema object) switches the request to
+        ``response_format={"type": "json_schema", "strict": True, ...}``,
+        which constrains the model at the API level to that exact shape --
+        not just "valid JSON," but "valid JSON matching this schema." This
+        matters more than it sounds: tested live, the model this project
+        defaults to would sometimes ignore an explicit single-action
+        instruction in the prompt and return a whole multi-step plan
+        instead, while still being syntactically valid JSON. `json_object`
+        mode has no way to catch that; `json_schema` with `strict: True`
+        does, at the API level, before the caller ever has to validate
+        anything itself. Without a schema this falls back to the weaker
+        ``json_object`` mode, which is enough for callers (tests, ad-hoc
+        checks) that only need "valid JSON," not a specific shape.
         """
         if self._client is None:
             raise LLMError(
                 "LLM is not configured (no API key set). This should never be "
                 "reached from replay -- only discovery calls complete_json()."
             )
+
+        if schema is not None:
+            response_format: dict[str, Any] = {
+                "type": "json_schema",
+                "json_schema": {"name": "action", "strict": True, "schema": schema},
+            }
+        else:
+            response_format = {"type": "json_object"}
 
         attempt = 0
         delay = self._settings.llm_initial_backoff_s
@@ -79,7 +98,8 @@ class LLMClient:
                 response = await self._client.chat.completions.create(
                     model=self._settings.llm_model,
                     temperature=self._settings.llm_temperature,
-                    response_format={"type": "json_object"},
+                    max_tokens=self._settings.llm_max_tokens,
+                    response_format=response_format,
                     messages=[
                         {"role": "system", "content": system},
                         {"role": "user", "content": user},

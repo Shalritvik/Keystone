@@ -4,6 +4,7 @@ pydantic>=2.7
 pyyaml>=6.0
 openai>=1.40          # used only as an OpenAI-compatible client for NVIDIA NIM
 websockets>=12.0
+python-dotenv>=1.0    # loads .env into the process environment for Settings.from_env()
 
 # Mock application (the automation target)
 fastapi>=0.110

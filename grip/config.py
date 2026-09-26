@@ -24,11 +24,13 @@ from typing import Any, Literal
 from urllib.parse import urlparse
 
 import yaml
+from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_POLICY_PATH = REPO_ROOT / "policy.yaml"
 DEFAULT_ARTIFACT_DIR = REPO_ROOT / "artifacts"
 DEFAULT_EVIDENCE_DIR = REPO_ROOT / "evidence"
+DEFAULT_ENV_PATH = REPO_ROOT / ".env"
 
 
 # --------------------------------------------------------------------------
@@ -46,7 +48,7 @@ class Settings:
     # container) is a one-variable swap with no code change.
     llm_api_key: str = ""
     llm_base_url: str = "https://integrate.api.nvidia.com/v1"
-    llm_model: str = "meta/llama-3.3-70b-instruct"
+    llm_model: str = "openai/gpt-oss-20b"
 
     # The hosted NIM free tier rate-limits per model and answers with 429.
     # Discovery is the only path that calls the model at all, so we absorb
@@ -56,6 +58,14 @@ class Settings:
     llm_max_backoff_s: float = 45.0
     llm_temperature: float = 0.0
     llm_timeout_s: float = 120.0
+    # Several NIM-hosted models are reasoning models with a separate,
+    # unbounded reasoning trace before any `content` is emitted. Bounding
+    # `max_tokens` caps latency/cost for those; it is not a full reliability
+    # fix on its own -- one candidate model (moonshotai/kimi-k3) still
+    # returned an empty `content` on `finish_reason="stop"` in live testing
+    # even with this set, which is why it was rejected as the default in
+    # favour of a model that stayed reliable across repeated calls.
+    llm_max_tokens: int = 1024
 
     # Agent loop stopping conditions (3.1).
     max_steps: int = 25
@@ -73,6 +83,11 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        # A real environment variable (e.g. set by a deployment) always wins
+        # over .env -- override=False -- so .env is purely a local-dev
+        # convenience, never a way to shadow production configuration.
+        load_dotenv(dotenv_path=DEFAULT_ENV_PATH, override=False)
+
         def _flag(name: str, default: bool) -> bool:
             raw = os.getenv(name)
             if raw is None:
@@ -94,6 +109,7 @@ class Settings:
             llm_api_key=os.getenv("NVIDIA_API_KEY") or os.getenv("LLM_API_KEY") or "",
             llm_base_url=os.getenv("LLM_BASE_URL", cls.llm_base_url),
             llm_model=os.getenv("LLM_MODEL", cls.llm_model),
+            llm_max_tokens=int(_num("LLM_MAX_TOKENS", cls.llm_max_tokens)),
             max_steps=int(_num("GRIP_MAX_STEPS", cls.max_steps)),
             run_timeout_s=_num("GRIP_RUN_TIMEOUT_S", cls.run_timeout_s),
             headless=_flag("GRIP_HEADLESS", cls.headless),
