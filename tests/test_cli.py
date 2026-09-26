@@ -48,6 +48,25 @@ def test_load_artifact_raises_when_nothing_matches(tmp_path):
         _load_artifact(settings, "no_such_capability")
 
 
+def test_replay_param_flag_survives_any_ordering_relative_to_other_flags():
+    """Regression test: a bare nargs="*" positional for params silently
+
+    failed to parse once an optional flag appeared on either side of it
+    (found live: `replay X --tenant harbor member_id=12345` errored with
+    "unrecognized arguments"). --param as a named, repeatable flag has no
+    such ambiguity.
+    """
+    parser = build_parser()
+
+    args = parser.parse_args(["replay", "cap", "--tenant", "harbor", "--param", "member_id=12345"])
+    assert args.params == ["member_id=12345"]
+    assert args.tenant == "harbor"
+
+    args = parser.parse_args(["replay", "cap", "--param", "member_id=12345", "--tenant", "harbor"])
+    assert args.params == ["member_id=12345"]
+    assert args.tenant == "harbor"
+
+
 def test_replay_subcommand_requires_capability_id():
     parser = build_parser()
     with pytest.raises(SystemExit):

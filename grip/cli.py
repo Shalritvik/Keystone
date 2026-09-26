@@ -185,15 +185,23 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # --param key=value (repeatable), not a bare nargs="*" positional: argparse
+    # cannot reliably tell where a variadic positional ends once an optional
+    # flag appears on either side of it (verified live -- `replay X
+    # --tenant harbor member_id=12345` silently fails to parse), while a
+    # named, repeatable flag has no such ambiguity regardless of order.
     p_replay = sub.add_parser("replay", help="deterministic replay, no LLM")
     p_replay.add_argument("capability_id")
-    p_replay.add_argument("params", nargs="*", help="key=value pairs")
+    p_replay.add_argument("--param", action="append", default=[], metavar="key=value", dest="params")
     p_replay.add_argument("--tenant")
     p_replay.add_argument("--attended", action="store_true", help="run headed; allows a draft and risky actions")
 
     p_approve = sub.add_parser("approve", help="promote draft -> approved")
     p_approve.add_argument("capability_id")
-    p_approve.add_argument("params", nargs="*", help="key=value pairs to run the reliability check with")
+    p_approve.add_argument(
+        "--param", action="append", default=[], metavar="key=value", dest="params",
+        help="key=value pairs to run the reliability check with",
+    )
     p_approve.add_argument("--by", required=True, help="who is approving this")
     p_approve.add_argument("--note", default="")
     p_approve.add_argument("--tenant")
