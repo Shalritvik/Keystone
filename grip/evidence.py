@@ -159,7 +159,47 @@ class ModelDecision:
             self.value = REDACTED
 
 
-Record = RunStarted | StepStarted | StepFinished | RunFinished | ModelDecision
+@dataclass
+class EscalationRaised:
+    """Automation paused and handed the live session to a human. Carries
+
+    exactly what the brief asks an intervention request to carry: which
+    capability/goal, the current step, and why it stopped. The screenshot
+    and full surface state live alongside this in the same evidence dir
+    (screenshots/) rather than being duplicated into the record itself.
+    """
+
+    kind: str = field(default="escalation_raised", init=False)
+    schema_version: str = field(default=SCHEMA_VERSION, init=False)
+    run_id: str = ""
+    request_id: str = ""
+    capability_id: str | None = None
+    goal: str | None = None
+    step_index: int | None = None
+    reason: str = ""
+    screenshot: str | None = None
+    timestamp: str = field(default_factory=_now)
+
+
+@dataclass
+class EscalationResumed:
+    """Control was handed back to automation. ``note`` records what the
+
+    human did or decided, per the brief's "record what the human did."
+    """
+
+    kind: str = field(default="escalation_resumed", init=False)
+    schema_version: str = field(default=SCHEMA_VERSION, init=False)
+    run_id: str = ""
+    request_id: str = ""
+    note: str = ""
+    timestamp: str = field(default_factory=_now)
+
+
+Record = (
+    RunStarted | StepStarted | StepFinished | RunFinished | ModelDecision
+    | EscalationRaised | EscalationResumed
+)
 
 _KIND_TO_TYPE: dict[str, type] = {
     "run_started": RunStarted,
@@ -167,6 +207,8 @@ _KIND_TO_TYPE: dict[str, type] = {
     "step_finished": StepFinished,
     "run_finished": RunFinished,
     "model_decision": ModelDecision,
+    "escalation_raised": EscalationRaised,
+    "escalation_resumed": EscalationResumed,
 }
 
 

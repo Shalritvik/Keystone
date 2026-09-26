@@ -169,7 +169,7 @@ class GuardedSurface(Surface):
             return ActionOutcome(
                 ok=False,
                 detail=f"escalation required: {decision.reason}",
-                error_kind="disabled",
+                error_kind="escalation_required",
             )
 
         return await self._surface.act(request)

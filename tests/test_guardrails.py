@@ -147,6 +147,7 @@ async def test_guarded_surface_blocks_before_reaching_wrapped_surface():
     outcome = await guarded.act(request)
 
     assert outcome.ok is False
+    assert outcome.error_kind == "escalation_required"  # distinct from a plain policy block
     assert "escalation required" in outcome.detail
     assert fake.acted == []  # never reached the real surface
 

@@ -1,0 +1,140 @@
+{
+  "schema_version": "1.0",
+  "capability_id": "open_subaccount",
+  "version": 1,
+  "title": "Open a sub-account for a member",
+  "description": "Opens a new sub-account for a member up through posting the transaction. The final step is classified risky by policy.yaml and requires human confirmation when run unattended -- this artifact exists to demonstrate the escalation/handoff mechanism (Phase 6), not as a fully general capability.",
+  "goal": "open a new sub-account for a member and post the transaction",
+
+  "surface": {
+    "kind": "web",
+    "entry": "http://127.0.0.1:8800/t/pinnacle/subaccount/new",
+    "product": "mock-legacy-servicing-console",
+    "product_version": "7.2",
+    "recorded_tenant": "pinnacle"
+  },
+
+  "params": [
+    {
+      "name": "member_id",
+      "type": "string",
+      "required": true,
+      "description": "The member number to open the sub-account for.",
+      "pattern": "^[0-9]{1,10}$",
+      "example": "12345",
+      "sensitive": false
+    }
+  ],
+
+  "outputs": [],
+
+  "steps": [
+    {
+      "index": 0,
+      "action": "type",
+      "target": {
+        "role": "textbox",
+        "name": "Member #:",
+        "name_match": "normalized",
+        "frame_path": [],
+        "ordinal": 0,
+        "rationale": "Same adjacent-left-cell targeting as lookup_member_savings_balance's step 0 -- no <label for> in this form either."
+      },
+      "value": { "kind": "param", "param": "member_id" },
+      "checkpoint": {
+        "kind": "ax_value_matches",
+        "locator": {
+          "role": "textbox", "name": "Member #:", "name_match": "normalized",
+          "frame_path": [], "ordinal": 0,
+          "rationale": "Re-resolved rather than reusing a live reference, per the ref/locator distinction."
+        },
+        "pattern": "^${member_id}$",
+        "description": "the member field visibly holds the value we just typed"
+      },
+      "risk": "safe",
+      "note": "Enter the member number."
+    },
+    {
+      "index": 1,
+      "action": "select",
+      "target": {
+        "role": "combobox",
+        "name": "Sub-Account Type:",
+        "name_match": "normalized",
+        "frame_path": [],
+        "ordinal": 0,
+        "rationale": "Adjacent-left-cell targeting; the select carries no name of its own."
+      },
+      "value": { "kind": "literal", "value": "S02 - SECONDARY SAVINGS" },
+      "checkpoint": null,
+      "risk": "safe",
+      "note": "Fixed choice for this demo artifact -- not parameterised, since the point is exercising the escalation path, not sub-account-type selection."
+    },
+    {
+      "index": 2,
+      "action": "click",
+      "target": {
+        "role": "button",
+        "name": "Continue",
+        "name_match": "normalized",
+        "frame_path": [],
+        "ordinal": 0,
+        "rationale": "Named by its own value attribute (a submit input) -- the strongest targeting available."
+      },
+      "checkpoint": {
+        "kind": "ax_present",
+        "locator": {
+          "role": "button", "name": "Post Transaction", "name_match": "normalized",
+          "frame_path": [], "ordinal": 0,
+          "rationale": "Same locator as the next step's target -- this click's own effect is best asserted by what the next step needs to already be true, not by the URL alone."
+        },
+        "description": "the review screen (with a Post Transaction button) is showing"
+      },
+      "risk": "safe",
+      "note": "Proceed to the confirmation/review screen."
+    },
+    {
+      "index": 3,
+      "action": "click",
+      "target": {
+        "role": "button",
+        "name": "Post Transaction",
+        "name_match": "normalized",
+        "frame_path": [],
+        "ordinal": 0,
+        "rationale": "Named by its own value attribute. Classified 'risky' by policy.yaml's risky_control_patterns on caption alone ('post ... transaction') -- this is the step design rule 5 exists for: risk is a property of (action, target), not the click verb."
+      },
+      "checkpoint": {
+        "kind": "ax_present",
+        "locator": {
+          "role": "status", "name": "SUB-ACCOUNT OPENED", "name_match": "exact",
+          "frame_path": [], "ordinal": 0,
+          "rationale": "The confirmation page's own status text, static and independent of which member/type was posted."
+        },
+        "description": "the transaction was posted and the confirmation screen is showing"
+      },
+      "risk": "risky",
+      "note": "The irreversible step. Escalates when unattended; see grip/escalation/controller.py for the handoff mechanism this step is designed to exercise."
+    }
+  ],
+
+  "success": {
+    "kind": "ax_present",
+    "locator": {
+      "role": "status", "name": "SUB-ACCOUNT OPENED", "name_match": "exact",
+      "frame_path": [], "ordinal": 0,
+      "rationale": "Independent re-assertion of the flow's overall goal against the live surface."
+    },
+    "description": "the sub-account was opened and posted"
+  },
+
+  "business_outcomes": [],
+  "recoveries": [],
+  "escalations": [],
+  "tenant_overrides": [],
+
+  "approval": {
+    "state": "draft",
+    "note": "Hand-authored to exercise the escalation/handoff mechanism (Phase 6) against a real risky step already classified by policy.yaml. Not intended for unattended production use as-is -- the sub-account type is hardcoded."
+  }
+}

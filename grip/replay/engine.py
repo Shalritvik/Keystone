@@ -37,12 +37,12 @@ from urllib.parse import urlparse
 
 from grip.conditions import evaluate as evaluate_condition
 from grip.conditions import substitute as _substitute
+from grip.escalation.controller import EscalationController
 from grip.evidence import REDACTED, EvidenceWriter, RunFinished, RunStarted, StepFinished, StepStarted
 from grip.guardrails import GuardedSurface
 from grip.schemas import (
     BusinessOutcome,
     CapabilityArtifact,
-    EscalationRule,
     ReplayResult,
     Step,
     StepTrace,
@@ -77,8 +77,17 @@ class _BusinessSignal(Exception):
 
 
 class _EscalationSignal(Exception):
-    def __init__(self, rule: EscalationRule) -> None:
-        self.rule = rule
+    """Unattended and no controller wired in -- nobody to ask, so the run
+
+    stops and reports ``status="escalated"`` rather than a plain failure.
+    Carries a plain code/description rather than an ``EscalationRule``
+    because the trigger might be a declared rule OR a guardrail-blocked
+    risky action, and the two need to unwind identically.
+    """
+
+    def __init__(self, code: str, description: str) -> None:
+        self.code = code
+        self.description = description
 
 
 class _FailureSignal(Exception):
@@ -105,16 +114,31 @@ class _RunContext:
     tenant: str | None
     run_id: str
     writer: EvidenceWriter
+    escalation_controller: EscalationController | None = None
     captures: dict[str, str] = field(default_factory=dict)
     recovery_counts: dict[str, int] = field(default_factory=dict)
 
 
 class ReplayEngine:
-    """Executes one ``CapabilityArtifact`` invocation against a live surface."""
+    """Executes one ``CapabilityArtifact`` invocation against a live surface.
 
-    def __init__(self, surface: GuardedSurface, evidence_dir: Path | str) -> None:
+    ``escalation_controller`` is optional and unattended-by-default: with
+    none given, an escalation trigger stops the run with
+    ``status="escalated"`` exactly as it always did (every existing test
+    keeps passing unchanged). Given one, the same trigger pauses for a real
+    human handoff instead -- see grip/escalation/controller.py.
+    """
+
+    def __init__(
+        self,
+        surface: GuardedSurface,
+        evidence_dir: Path | str,
+        *,
+        escalation_controller: EscalationController | None = None,
+    ) -> None:
         self._surface = surface
         self._evidence_dir = Path(evidence_dir)
+        self._escalation_controller = escalation_controller
 
     # -- public entry point --------------------------------------------
 
@@ -131,7 +155,10 @@ class ReplayEngine:
 
         run_id = run_id or f"replay-{artifact.capability_id}-{uuid.uuid4().hex[:8]}"
         writer = EvidenceWriter(self._evidence_dir / run_id)
-        ctx = _RunContext(artifact=artifact, params=params, tenant=tenant, run_id=run_id, writer=writer)
+        ctx = _RunContext(
+            artifact=artifact, params=params, tenant=tenant, run_id=run_id, writer=writer,
+            escalation_controller=self._escalation_controller,
+        )
         start = time.monotonic()
 
         writer.write(
@@ -174,7 +201,9 @@ class ReplayEngine:
                 outcome_code=sig.outcome.code, outcome_description=sig.outcome.description,
             )
         except _EscalationSignal as sig:
-            result = self._finish(ctx, traces, start, status="escalated", escalation_id=sig.rule.code)
+            result = self._finish(
+                ctx, traces, start, status="escalated", escalation_id=sig.code, message=sig.description
+            )
         except _FailureSignal as sig:
             result = self._finish(
                 ctx, traces, start, status="failure",
@@ -261,11 +290,24 @@ class ReplayEngine:
                     duration_ms=duration_ms, detail=act_detail,
                 )
 
-            # --- step did not complete cleanly: business -> recovery -> escalation -> fail ---
+            # --- step did not complete cleanly: escalation -> business -> recovery -> escalation -> fail ---
             if expected is None:
                 expected = act_detail or "action to succeed"
             if observed is None:
                 observed = act_detail
+
+            # A guardrail-blocked risky action takes priority over
+            # business-outcome detection: it's a fact about the attempted
+            # *action*, not about page state, so a coincidentally-matching
+            # business outcome shouldn't override it.
+            if act_kind == "escalation_required":
+                resolved = await self._handle_escalation(
+                    ctx, step, step_start, recoveries_applied,
+                    code="GUARDRAIL_ESCALATION", description=act_detail,
+                )
+                if resolved is not None:
+                    return resolved
+                continue
 
             for outcome in ctx.artifact.business_outcomes:
                 holds, _ = await evaluate_condition(self._surface, outcome.detect, ctx.params)
@@ -278,12 +320,20 @@ class ReplayEngine:
             if await self._try_recover(ctx, recoveries_applied):
                 continue  # cleared the obstacle; retry this step from the top
 
+            matched_rule = None
             for rule in ctx.artifact.escalations:
                 holds, _ = await evaluate_condition(self._surface, rule.detect, ctx.params)
                 if holds:
-                    self._write_step_failed(ctx, step, step_start, recoveries_applied,
-                                             observed=f"escalation {rule.code}", detail=rule.description)
-                    raise _EscalationSignal(rule)
+                    matched_rule = rule
+                    break
+            if matched_rule is not None:
+                resolved = await self._handle_escalation(
+                    ctx, step, step_start, recoveries_applied,
+                    code=matched_rule.code, description=matched_rule.description,
+                )
+                if resolved is not None:
+                    return resolved
+                continue
 
             screenshot_path = await self._capture_failure_screenshot(ctx, step.index)
             self._write_step_failed(ctx, step, step_start, recoveries_applied,
@@ -307,6 +357,63 @@ class ReplayEngine:
                 screenshot=screenshot,
             )
         )
+
+    # -- escalation -----------------------------------------------------------
+
+    async def _handle_escalation(
+        self, ctx: _RunContext, step: Step, step_start: float, recoveries_applied: list[str],
+        *, code: str, description: str,
+    ) -> StepTrace | None:
+        """Pauses for a human if a controller is wired in; otherwise raises
+
+        immediately (unattended, nobody to ask).
+
+        Returns a completed ``StepTrace`` if resuming shows the step's own
+        checkpoint already holds -- the human's intervention *completed*
+        this step, not merely cleared an obstacle for automation to redo --
+        or ``None`` if the caller should retry the step's action from the
+        top. Never both. This is the answer to "why re-evaluate instead of
+        resuming at step N+1": a human handed a live session can do more,
+        less, or something orthogonal to what the artifact's plan expected
+        at this exact point, and re-asserting THIS step's own postcondition
+        is the only way to find out which happened. Skip straight to N+1
+        and a step the human never actually performed silently never runs;
+        blindly retry the original action and, if the human's action
+        already navigated the page away (e.g. clicking "Post Transaction"
+        moved on to a confirmation screen), the retry fails on a target
+        that no longer exists -- a spurious hard failure immediately after
+        a successful intervention.
+        """
+        if ctx.escalation_controller is None:
+            self._write_step_failed(ctx, step, step_start, recoveries_applied,
+                                     observed=description, detail=description)
+            raise _EscalationSignal(code=code, description=description)
+
+        await ctx.escalation_controller.raise_intervention(
+            run_id=ctx.run_id, capability_id=ctx.artifact.capability_id, goal=None,
+            step_index=step.index, reason=description, screenshot_dir=ctx.writer.screenshot_dir(),
+        )
+
+        if step.checkpoint is not None:
+            now_ok, now_observed = await evaluate_condition(self._surface, step.checkpoint, ctx.params)
+            if now_ok:
+                applied = list(recoveries_applied) + [code]
+                duration_ms = int((time.monotonic() - step_start) * 1000)
+                detail = f"resolved by human intervention: {description}"
+                ctx.writer.write(
+                    StepFinished(
+                        run_id=ctx.run_id, step_index=step.index, status="recovered",
+                        observed=now_observed, detail=detail, duration_ms=duration_ms,
+                        recoveries_applied=applied,
+                    )
+                )
+                return StepTrace(
+                    index=step.index, action=step.action,
+                    target=(step.target.describe() if step.target else None),
+                    status="recovered", observed=now_observed, recoveries_applied=applied,
+                    duration_ms=duration_ms, detail=detail,
+                )
+        return None
 
     # -- acting -----------------------------------------------------------
 

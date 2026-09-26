@@ -278,7 +278,15 @@ class ActionOutcome:
     resolved: str | None = None
     """How the target was actually found — primary locator or which fallback."""
     duration_ms: int = 0
-    error_kind: Literal["not_found", "ambiguous", "disabled", "timeout", "error"] | None = None
+    error_kind: (
+        Literal["not_found", "ambiguous", "disabled", "timeout", "error", "escalation_required"] | None
+    ) = None
+    """"escalation_required" is distinct from "disabled" (a plain policy
+
+    block) on purpose: a caller needs to tell "the guardrail said no" from
+    "the guardrail said ask a human" apart to route the latter to an
+    EscalationController instead of just failing.
+    """
 
 
 class Surface(ABC):
