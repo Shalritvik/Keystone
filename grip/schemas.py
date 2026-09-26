@@ -605,6 +605,16 @@ class StepTrace(BaseModel):
     recoveries_applied: list[str] = Field(default_factory=list)
     duration_ms: int = 0
     detail: str = ""
+    resolved: str | None = Field(
+        default=None,
+        description=(
+            "How the step's locator was actually matched -- 'primary' or which "
+            "fallback strategy. Null for steps with no locator (navigate, wait). "
+            "A capability that only ever resolves via fallbacks is drifting even "
+            "while it still technically replays; grip/reliability.py is what "
+            "finally reads this back rather than letting it go to waste."
+        ),
+    )
 
 
 class ReplayResult(BaseModel):

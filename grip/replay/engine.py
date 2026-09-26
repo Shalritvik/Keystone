@@ -256,7 +256,7 @@ class ReplayEngine:
                 )
             )
 
-            act_ok, act_detail, act_kind, read_value = await self._attempt(
+            act_ok, act_detail, act_kind, read_value, resolved_how = await self._attempt(
                 ctx, step, value_str, sensitive, url_override
             )
 
@@ -287,7 +287,7 @@ class ReplayEngine:
                     value=(REDACTED if sensitive else value_str), status=status,
                     expected=expected, observed=observed,
                     recoveries_applied=list(recoveries_applied),
-                    duration_ms=duration_ms, detail=act_detail,
+                    duration_ms=duration_ms, detail=act_detail, resolved=resolved_how,
                 )
 
             # --- step did not complete cleanly: escalation -> business -> recovery -> escalation -> fail ---
@@ -419,20 +419,20 @@ class ReplayEngine:
 
     async def _attempt(
         self, ctx: _RunContext, step: Step, value_str: str | None, sensitive: bool, url_override: str | None,
-    ) -> tuple[bool, str, str | None, str | None]:
+    ) -> tuple[bool, str, str | None, str | None, str | None]:
         if step.action == "navigate":
             url = url_override or self._navigate_url(ctx, step)
             if url is None:
-                return False, "navigate step has no url, value, or route_template", "error", None
+                return False, "navigate step has no url, value, or route_template", "error", None, None
             outcome = await self._surface.act(ActionRequest(action="navigate", url=url, settle_ms=step.settle_ms))
-            return outcome.ok, outcome.detail, outcome.error_kind, outcome.read_value
+            return outcome.ok, outcome.detail, outcome.error_kind, outcome.read_value, None
 
         if step.target is None:
-            return False, f"step {step.index} ({step.action}) has no target", "error", None
+            return False, f"step {step.index} ({step.action}) has no target", "error", None, None
 
         ref, how = await self._surface.resolve(step.target)
         if ref is None:
-            return False, f"locator not found: {how}", "locator_not_found", None
+            return False, f"locator not found: {how}", "locator_not_found", None, None
 
         outcome = await self._surface.act(
             ActionRequest(
@@ -440,7 +440,7 @@ class ReplayEngine:
                 settle_ms=step.settle_ms, sensitive=sensitive,
             )
         )
-        return outcome.ok, outcome.detail, outcome.error_kind, outcome.read_value
+        return outcome.ok, outcome.detail, outcome.error_kind, outcome.read_value, how
 
     def _navigate_url(self, ctx: _RunContext, step: Step) -> str | None:
         if step.value is not None:

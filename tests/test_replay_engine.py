@@ -41,6 +41,9 @@ async def test_success_branch(engine, artifact):
     assert result.ok is True
     assert result.outputs["regular_savings_balance"] == "4,182.55"
     assert [s.status for s in result.steps] == ["ok", "ok", "ok", "ok"]
+    # Every locator on this clean artifact resolves via primary match --
+    # the raw material grip/reliability.py reads back to score a run.
+    assert [s.resolved for s in result.steps[1:]] == ["primary", "primary", "primary"]
 
 
 @pytest.mark.asyncio

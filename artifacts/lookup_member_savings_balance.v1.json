@@ -5,7 +5,6 @@
   "title": "Look up a member's regular savings balance",
   "description": "Given a member number, searches the servicing console and returns the member's Regular Savings account balance. Returns a business outcome (not an error) if the member number does not exist or the operator is not entitled to view the record.",
   "goal": "look up member 12345 and read their regular savings balance",
-
   "surface": {
     "kind": "web",
     "entry": "http://127.0.0.1:8800/t/pinnacle/lookup",
@@ -13,7 +12,6 @@
     "product_version": "7.2",
     "recorded_tenant": "pinnacle"
   },
-
   "params": [
     {
       "name": "member_id",
@@ -25,21 +23,19 @@
       "sensitive": false
     }
   ],
-
   "outputs": [
     {
       "name": "regular_savings_balance",
       "type": "money",
       "description": "The member's Regular Savings account balance, as displayed (e.g. '4,182.55').",
-      "required": true,
       "source": {
-        "attribute": "value",
         "locator": {
           "role": "cell",
           "name": "Regular Savings Balance:",
           "name_match": "normalized",
           "frame_path": [],
           "ancestor_roles": [],
+          "ancestor_name": null,
           "ordinal": 0,
           "fallbacks": [
             {
@@ -49,11 +45,13 @@
             }
           ],
           "rationale": "The value half of a label:value table-cell pair (see grip/surface/web.py's pairing heuristic): its accessible name is inherited from the caption cell physically to its left ('Regular Savings Balance:'), and its own text is exposed separately as AXNode.value. Because the label half of the pair is deliberately excluded from perception, this is the only 'cell' node with this name, so ordinal 0 is correct and not a smell here -- verified live: two candidate nodes existed before that exclusion was added, and the label (not the value) landed at ordinal 0, which silently returned the caption instead of the balance. Scoped to the top-level document (frame_path is empty) because the entry URL is the lookup page loaded directly, not through the tenant frameset."
-        }
-      }
+        },
+        "attribute": "value",
+        "capture_pattern": null
+      },
+      "required": true
     }
   ],
-
   "steps": [
     {
       "index": 0,
@@ -64,6 +62,7 @@
         "name_match": "normalized",
         "frame_path": [],
         "ancestor_roles": [],
+        "ancestor_name": null,
         "ordinal": 0,
         "fallbacks": [
           {
@@ -74,7 +73,13 @@
         ],
         "rationale": "The field carries no <label for> anywhere in this app -- its caption is the table cell physically to its left ('Member #:'), which is exactly the adjacent-cell heuristic grip/surface/web.py's accessible-name computation implements. Harbor Point renames this same field's caption to 'Account Number:' and reorders it in the form; a per-tenant TenantOverride patches the name for that tenant, but the reorder itself requires no change at all, since targeting is by name, not position."
       },
-      "value": { "kind": "param", "param": "member_id" },
+      "value": {
+        "kind": "param",
+        "value": null,
+        "param": "member_id",
+        "from_output": null
+      },
+      "route_template": null,
       "checkpoint": {
         "kind": "ax_value_matches",
         "locator": {
@@ -82,13 +87,18 @@
           "name": "Member #:",
           "name_match": "normalized",
           "frame_path": [],
+          "ancestor_roles": [],
+          "ancestor_name": null,
           "ordinal": 0,
+          "fallbacks": [],
           "rationale": "Same field as the step target; re-resolved rather than reusing a live reference, per the ref/locator distinction -- the checkpoint asserts against the surface exactly as replay would months later."
         },
         "pattern": "^${member_id}$",
         "description": "the member field visibly holds the value we just typed"
       },
+      "settle_ms": 0,
       "risk": "safe",
+      "captures": null,
       "note": "The member field has no accessible name of its own in markup; it is targeted by the adjacent-left table cell's caption."
     },
     {
@@ -100,9 +110,13 @@
         "name_match": "normalized",
         "frame_path": [],
         "ancestor_roles": [],
+        "ancestor_name": null,
         "ordinal": 0,
+        "fallbacks": [],
         "rationale": "Named directly by its own `value` attribute (a submit input), the second-highest-priority step in the accessible-name computation -- this is the strongest kind of targeting available. frame_path is empty because the lookup page is loaded directly rather than through the tenant frameset, where a same-named 'Search' link also exists in the nav frame; that link is a distinct node scoped to a different frame_path and would never be confused with this one even in the frameset case."
       },
+      "value": null,
+      "route_template": null,
       "checkpoint": {
         "kind": "ax_present",
         "locator": {
@@ -110,12 +124,18 @@
           "name": "Regular Savings Balance:",
           "name_match": "normalized",
           "frame_path": [],
+          "ancestor_roles": [],
+          "ancestor_name": null,
           "ordinal": 0,
+          "fallbacks": [],
           "rationale": "Same locator as the output extraction below. Its presence after clicking Search is exactly the condition that distinguishes 'we landed on a member record' from the two business outcomes and from a hard failure -- all three land on a URL matching the same /member/:id route, so the checkpoint has to look at content, not the URL."
         },
+        "pattern": null,
         "description": "the member summary panel (with a Regular Savings Balance row) is showing"
       },
+      "settle_ms": 0,
       "risk": "safe",
+      "captures": null,
       "note": "Search is classified safe by policy.yaml -- it is a read-only lookup, not a posting action."
     },
     {
@@ -126,15 +146,21 @@
         "name": "Regular Savings Balance:",
         "name_match": "normalized",
         "frame_path": [],
+        "ancestor_roles": [],
+        "ancestor_name": null,
         "ordinal": 0,
+        "fallbacks": [],
         "rationale": "See the output's rationale above -- identical locator, since this step and the output extraction read the same value. The step's read is part of the recorded flow (and would feed a later step via ValueSource(kind='extracted') in a more complex capability); the output extraction re-resolves and re-reads independently at the end, per design rule 6, rather than trusting this step's captured value."
       },
-      "captures": "regular_savings_balance",
+      "value": null,
+      "route_template": null,
+      "checkpoint": null,
+      "settle_ms": 0,
       "risk": "safe",
+      "captures": "regular_savings_balance",
       "note": "No checkpoint on this step: step 1's checkpoint already established the value is present before this read is attempted."
     }
   ],
-
   "success": {
     "kind": "ax_present",
     "locator": {
@@ -142,12 +168,15 @@
       "name": "Regular Savings Balance:",
       "name_match": "normalized",
       "frame_path": [],
+      "ancestor_roles": [],
+      "ancestor_name": null,
       "ordinal": 0,
+      "fallbacks": [],
       "rationale": "Independent re-assertion of the flow's overall goal, evaluated against the live surface rather than inferred from 'every step reported ok' -- design rule 6."
     },
+    "pattern": null,
     "description": "the Regular Savings Balance was displayed for this member"
   },
-
   "business_outcomes": [
     {
       "code": "MEMBER_NOT_FOUND",
@@ -159,11 +188,16 @@
           "name": "NO RECORD FOUND",
           "name_match": "contains",
           "frame_path": [],
+          "ancestor_roles": [],
+          "ancestor_name": null,
           "ordinal": 0,
+          "fallbacks": [],
           "rationale": "The host's not-found message includes the searched member number ('NO RECORD FOUND FOR MEMBER 99999'), which varies per call, so the locator matches on the fixed leading substring rather than the full text. role=status is how this app marks a host response message, distinguishing it from role=alert (used for authorisation failures) purely by role -- no text-scraping needed to tell the two business outcomes apart."
         },
+        "pattern": null,
         "description": "host returned MBR-0404 (no record found)"
-      }
+      },
+      "outputs": {}
     },
     {
       "code": "PERMISSION_DENIED",
@@ -175,14 +209,18 @@
           "name": "NOT ENTITLED",
           "name_match": "contains",
           "frame_path": [],
+          "ancestor_roles": [],
+          "ancestor_name": null,
           "ordinal": 0,
+          "fallbacks": [],
           "rationale": "role=alert (not role=status) is how this app marks an authorisation failure; matched on a fixed substring of the message for the same reason as MEMBER_NOT_FOUND above."
         },
+        "pattern": null,
         "description": "host returned SEC-0703 (operator not entitled)"
-      }
+      },
+      "outputs": {}
     }
   ],
-
   "recoveries": [
     {
       "code": "DISMISS_MOTD_INTERSTITIAL",
@@ -194,9 +232,13 @@
           "name": "System Message",
           "name_match": "exact",
           "frame_path": [],
+          "ancestor_roles": [],
+          "ancestor_name": null,
           "ordinal": 0,
+          "fallbacks": [],
           "rationale": "Named explicitly via aria-label in this app's markup ('System Message'), the highest-priority source in the accessible-name computation -- no adjacent-cell heuristic needed here."
         },
+        "pattern": null,
         "description": "the message-of-the-day dialog is present"
       },
       "action": "click",
@@ -205,15 +247,17 @@
         "name": "Continue",
         "name_match": "normalized",
         "frame_path": [],
+        "ancestor_roles": [],
+        "ancestor_name": null,
         "ordinal": 0,
+        "fallbacks": [],
         "rationale": "Named by its own `value` attribute, same as the Search button."
       },
+      "value": null,
       "max_attempts": 2
     }
   ],
-
   "escalations": [],
-
   "tenant_overrides": [
     {
       "tenant": "harbor",
@@ -224,7 +268,10 @@
           "name": "Account Number:",
           "name_match": "normalized",
           "frame_path": [],
+          "ancestor_roles": [],
+          "ancestor_name": null,
           "ordinal": 0,
+          "fallbacks": [],
           "rationale": "Harbor Point renames this field's caption from 'Member #:' to 'Account Number:'. The field's reordering within the form (branch first, then this field) needs no override at all -- accessible-name targeting is positionless by construction; only the caption rename requires patching."
         },
         "1": {
@@ -232,7 +279,10 @@
           "name": "Find",
           "name_match": "normalized",
           "frame_path": [],
+          "ancestor_roles": [],
+          "ancestor_name": null,
           "ordinal": 0,
+          "fallbacks": [],
           "rationale": "Harbor Point also renames the submit button's caption from 'Search' to 'Find' (mockapp/data.py's per-tenant search_button config) -- a second, independent caption difference from the field rename above, not a variant of it. Confirmed live against the mock during Phase 1 (dump_ax.py showed button \"Find\" on harbor's lookup page) before this override was written."
         }
       },
@@ -241,9 +291,20 @@
       "note": "Same product (v7.2) as pinnacle; two static per-tenant caption differences (the searched field's label and the submit button's label), each patched independently. Still a small, reviewable diff, not a re-recording -- see TenantOverride's own docstring on what a large override count would signal. See BUILD_PLAN.md's cross-tenant stretch goal."
     }
   ],
-
   "approval": {
-    "state": "draft",
-    "note": "Hand-authored per BUILD_PLAN.md Phase 4, to give the discovery compiler (Phase 5) a target shape before it exists. Not yet run against a real discovery session."
+    "state": "approved",
+    "approved_by": "shalritvik",
+    "approved_at": "2026-09-26T19:22:06+00:00",
+    "note": "Verified via reliability check"
+  },
+  "provenance": {
+    "discovered_at": "2026-09-26T19:22:03+00:00",
+    "discovery_run_id": "",
+    "model": "",
+    "model_base_url": "",
+    "steps_explored": 0,
+    "human_interventions": 0,
+    "policy_version": "1",
+    "content_hash": "3d26712ca8537e71"
   }
 }
