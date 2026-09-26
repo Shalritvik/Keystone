@@ -86,3 +86,18 @@ async def guarded_surface(clear_faults):
         yield guarded
     finally:
         await guarded.close()
+
+
+@pytest_asyncio.fixture
+async def surface(clear_faults):
+    """The raw (unwrapped) PlaywrightSurface -- for tests exercising
+
+    resolve()/perception directly, below the guardrail layer.
+    """
+    from grip.surface.web import PlaywrightSurface
+
+    s = await PlaywrightSurface.create(headless=True, action_timeout_s=5.0)
+    try:
+        yield s
+    finally:
+        await s.close()

@@ -15,16 +15,6 @@ import time
 import pytest
 
 from grip.surface.base import ActionRequest
-from grip.surface.web import PlaywrightSurface
-
-
-@pytest.fixture
-async def surface(clear_faults):
-    s = await PlaywrightSurface.create(headless=True, action_timeout_s=5.0)
-    try:
-        yield s
-    finally:
-        await s.close()
 
 
 @pytest.mark.asyncio
