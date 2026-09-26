@@ -111,6 +111,14 @@ class Guardrails:
             return None
         return REDACTED if self._policy.is_sensitive_field(control_name) else value
 
+    def is_sensitive_field(self, control_name: str | None) -> bool:
+        """Passthrough so callers (discovery's evidence recording) can decide
+
+        whether to mark a value sensitive without reaching past Guardrails
+        into the Policy object it wraps.
+        """
+        return self._policy.is_sensitive_field(control_name)
+
 
 class GuardedSurface(Surface):
     """Wraps a ``Surface`` so every action is checked before it reaches it.

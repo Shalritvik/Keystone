@@ -1,0 +1,223 @@
+{
+  "schema_version": "1.0",
+  "capability_id": "lookup_member_savings_balance_auto",
+  "version": 1,
+  "title": "Lookup Member Savings Balance Auto",
+  "description": "Auto-discovered capability for the goal: 'look up member 12345 and read their regular savings balance'. Draft -- human review required before approval.",
+  "goal": "look up member 12345 and read their regular savings balance",
+  "surface": {
+    "kind": "web",
+    "entry": "http://127.0.0.1:8800/t/pinnacle/lookup",
+    "product": null,
+    "product_version": null,
+    "recorded_tenant": "pinnacle"
+  },
+  "params": [
+    {
+      "name": "member_id",
+      "type": "string",
+      "required": true,
+      "description": "Value for textbox \"Member #:\"",
+      "pattern": null,
+      "example": "12345",
+      "sensitive": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "regular_savings_balance",
+      "type": "string",
+      "description": "Extracted by the discovery run: The regular savings balance is displayed in cell n6.",
+      "source": {
+        "locator": {
+          "role": "cell",
+          "name": "Regular Savings Balance:",
+          "name_match": "normalized",
+          "frame_path": [],
+          "ancestor_roles": [
+            "table"
+          ],
+          "ancestor_name": null,
+          "ordinal": 0,
+          "fallbacks": [],
+          "rationale": "Targeted by accessible name 'Regular Savings Balance:' on role 'cell', which is computed from the rendered label rather than markup structure and therefore survives restyling and per-tenant branding."
+        },
+        "attribute": "value",
+        "capture_pattern": null
+      },
+      "required": true
+    }
+  ],
+  "steps": [
+    {
+      "index": 0,
+      "action": "type",
+      "target": {
+        "role": "textbox",
+        "name": "Member #:",
+        "name_match": "normalized",
+        "frame_path": [],
+        "ancestor_roles": [
+          "form",
+          "table"
+        ],
+        "ancestor_name": null,
+        "ordinal": 0,
+        "fallbacks": [
+          {
+            "strategy": "css",
+            "expression": "input[name=\"txtMbrNo\"]",
+            "weaker_because": "Structural selector tied to markup rather than meaning. Legacy enterprise apps regenerate class names and table structure between releases, so this is a last resort used only when accessibility targeting misses."
+          }
+        ],
+        "rationale": "Targeted by accessible name 'Member #:' on role 'textbox', which is computed from the rendered label rather than markup structure and therefore survives restyling and per-tenant branding."
+      },
+      "value": {
+        "kind": "param",
+        "value": null,
+        "param": "member_id",
+        "from_output": null
+      },
+      "route_template": null,
+      "checkpoint": {
+        "kind": "ax_value_matches",
+        "locator": {
+          "role": "textbox",
+          "name": "Member #:",
+          "name_match": "normalized",
+          "frame_path": [],
+          "ancestor_roles": [
+            "form",
+            "table"
+          ],
+          "ancestor_name": null,
+          "ordinal": 0,
+          "fallbacks": [
+            {
+              "strategy": "css",
+              "expression": "input[name=\"txtMbrNo\"]",
+              "weaker_because": "Structural selector tied to markup rather than meaning. Legacy enterprise apps regenerate class names and table structure between releases, so this is a last resort used only when accessibility targeting misses."
+            }
+          ],
+          "rationale": "Targeted by accessible name 'Member #:' on role 'textbox', which is computed from the rendered label rather than markup structure and therefore survives restyling and per-tenant branding."
+        },
+        "pattern": "^${member_id}$",
+        "description": "the field visibly holds the value just set"
+      },
+      "settle_ms": 0,
+      "risk": "safe",
+      "captures": null,
+      "note": "Enter member number to search"
+    },
+    {
+      "index": 1,
+      "action": "click",
+      "target": {
+        "role": "button",
+        "name": "Search",
+        "name_match": "normalized",
+        "frame_path": [],
+        "ancestor_roles": [
+          "form",
+          "table"
+        ],
+        "ancestor_name": null,
+        "ordinal": 0,
+        "fallbacks": [
+          {
+            "strategy": "css",
+            "expression": "input[name=\"btnSrch\"]",
+            "weaker_because": "Structural selector tied to markup rather than meaning. Legacy enterprise apps regenerate class names and table structure between releases, so this is a last resort used only when accessibility targeting misses."
+          }
+        ],
+        "rationale": "Targeted by accessible name 'Search' on role 'button', which is computed from the rendered label rather than markup structure and therefore survives restyling and per-tenant branding."
+      },
+      "value": null,
+      "route_template": null,
+      "checkpoint": {
+        "kind": "ax_present",
+        "locator": {
+          "role": "cell",
+          "name": "Regular Savings Balance:",
+          "name_match": "normalized",
+          "frame_path": [],
+          "ancestor_roles": [
+            "table"
+          ],
+          "ancestor_name": null,
+          "ordinal": 0,
+          "fallbacks": [],
+          "rationale": "Targeted by accessible name 'Regular Savings Balance:' on role 'cell', which is computed from the rendered label rather than markup structure and therefore survives restyling and per-tenant branding."
+        },
+        "pattern": null,
+        "description": "the control the next step needs is now present"
+      },
+      "settle_ms": 0,
+      "risk": "safe",
+      "captures": null,
+      "note": "Click the Search button to retrieve the member's account information."
+    },
+    {
+      "index": 2,
+      "action": "read",
+      "target": {
+        "role": "cell",
+        "name": "Regular Savings Balance:",
+        "name_match": "normalized",
+        "frame_path": [],
+        "ancestor_roles": [
+          "table"
+        ],
+        "ancestor_name": null,
+        "ordinal": 0,
+        "fallbacks": [],
+        "rationale": "Targeted by accessible name 'Regular Savings Balance:' on role 'cell', which is computed from the rendered label rather than markup structure and therefore survives restyling and per-tenant branding."
+      },
+      "value": null,
+      "route_template": null,
+      "checkpoint": null,
+      "settle_ms": 0,
+      "risk": "safe",
+      "captures": "regular_savings_balance",
+      "note": "The regular savings balance is displayed in cell n6."
+    }
+  ],
+  "success": {
+    "kind": "ax_present",
+    "locator": {
+      "role": "cell",
+      "name": "Regular Savings Balance:",
+      "name_match": "normalized",
+      "frame_path": [],
+      "ancestor_roles": [
+        "table"
+      ],
+      "ancestor_name": null,
+      "ordinal": 0,
+      "fallbacks": [],
+      "rationale": "Targeted by accessible name 'Regular Savings Balance:' on role 'cell', which is computed from the rendered label rather than markup structure and therefore survives restyling and per-tenant branding."
+    },
+    "pattern": null,
+    "description": "the regular_savings_balance value is present"
+  },
+  "business_outcomes": [],
+  "recoveries": [],
+  "escalations": [],
+  "tenant_overrides": [],
+  "approval": {
+    "state": "draft",
+    "approved_by": null,
+    "approved_at": null,
+    "note": ""
+  },
+  "provenance": {
+    "discovered_at": "2026-09-26T18:55:13+00:00",
+    "discovery_run_id": "discover-lookup_member_savings_balance_auto-d5ed7776",
+    "model": "openai/gpt-oss-20b",
+    "model_base_url": "https://integrate.api.nvidia.com/v1",
+    "steps_explored": 3,
+    "human_interventions": 0,
+    "policy_version": "1",
+    "content_hash": "1e5781e111976828"
+  }
+}

@@ -35,19 +35,20 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from grip.conditions import evaluate as evaluate_condition
+from grip.conditions import substitute as _substitute
 from grip.evidence import REDACTED, EvidenceWriter, RunFinished, RunStarted, StepFinished, StepStarted
 from grip.guardrails import GuardedSurface
 from grip.schemas import (
     BusinessOutcome,
     CapabilityArtifact,
-    Condition,
     EscalationRule,
     ReplayResult,
     Step,
     StepTrace,
     ValueSource,
 )
-from grip.surface.base import ActionRequest, normalize
+from grip.surface.base import ActionRequest
 
 
 class ReplayError(RuntimeError):
@@ -90,12 +91,7 @@ class _FailureSignal(Exception):
         self.message = message
 
 
-_PARAM_TOKEN = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 _ROUTE_TOKEN = re.compile(r":([a-zA-Z_][a-zA-Z0-9_]*)")
-
-
-def _substitute(text: str, params: dict[str, str]) -> str:
-    return _PARAM_TOKEN.sub(lambda m: params.get(m.group(1), m.group(0)), text)
 
 
 def _resolve_route(template: str, params: dict[str, str]) -> str:
@@ -157,7 +153,7 @@ class ReplayEngine:
             for step in artifact.steps:
                 traces.append(await self._run_step(ctx, step))
 
-            ok, observed = await self._condition_holds(ctx, artifact.success)
+            ok, observed = await evaluate_condition(self._surface, artifact.success, ctx.params)
             if not ok:
                 last_index = artifact.steps[-1].index if artifact.steps else -1
                 raise _FailureSignal(
@@ -242,7 +238,7 @@ class ReplayEngine:
             observed: str | None = None
             expected: str | None = None
             if act_ok and step.checkpoint is not None:
-                checkpoint_ok, observed = await self._condition_holds(ctx, step.checkpoint)
+                checkpoint_ok, observed = await evaluate_condition(self._surface, step.checkpoint, ctx.params)
                 expected = step.checkpoint.description or step.checkpoint.pattern
 
             if act_ok and checkpoint_ok:
@@ -272,7 +268,7 @@ class ReplayEngine:
                 observed = act_detail
 
             for outcome in ctx.artifact.business_outcomes:
-                holds, _ = await self._condition_holds(ctx, outcome.detect)
+                holds, _ = await evaluate_condition(self._surface, outcome.detect, ctx.params)
                 if holds:
                     self._write_step_failed(ctx, step, step_start, recoveries_applied,
                                              observed=f"business outcome {outcome.code}",
@@ -283,7 +279,7 @@ class ReplayEngine:
                 continue  # cleared the obstacle; retry this step from the top
 
             for rule in ctx.artifact.escalations:
-                holds, _ = await self._condition_holds(ctx, rule.detect)
+                holds, _ = await evaluate_condition(self._surface, rule.detect, ctx.params)
                 if holds:
                     self._write_step_failed(ctx, step, step_start, recoveries_applied,
                                              observed=f"escalation {rule.code}", detail=rule.description)
@@ -376,7 +372,7 @@ class ReplayEngine:
             used = ctx.recovery_counts.get(rule.code, 0)
             if used >= rule.max_attempts:
                 continue
-            holds, _ = await self._condition_holds(ctx, rule.detect)
+            holds, _ = await evaluate_condition(self._surface, rule.detect, ctx.params)
             if not holds:
                 continue
 
@@ -393,41 +389,6 @@ class ReplayEngine:
             recoveries_applied.append(rule.code)
             return True
         return False
-
-    # -- conditions -----------------------------------------------------------
-
-    async def _condition_holds(self, ctx: _RunContext, condition: Condition) -> tuple[bool, str | None]:
-        pattern = _substitute(condition.pattern, ctx.params) if condition.pattern else None
-
-        if condition.kind == "ax_present":
-            ref, how = await self._surface.resolve(condition.locator)
-            return ref is not None, (None if ref is not None else f"not found ({how})")
-
-        if condition.kind == "ax_absent":
-            ref, how = await self._surface.resolve(condition.locator)
-            return ref is None, (f"found unexpectedly: {condition.locator.describe()}" if ref is not None else None)
-
-        if condition.kind == "ax_value_matches":
-            ref, how = await self._surface.resolve(condition.locator)
-            if ref is None:
-                return False, f"target not found ({how})"
-            outcome = await self._surface.act(ActionRequest(action="read", ref=ref, locator=condition.locator))
-            if not outcome.ok:
-                return False, f"read failed: {outcome.detail}"
-            value = outcome.read_value or ""
-            return bool(re.search(pattern, value)), value
-
-        if condition.kind == "url_matches":
-            url = await self._surface.current_url()
-            return bool(re.search(pattern, url)), url
-
-        if condition.kind in ("text_present", "text_absent"):
-            observation = await self._surface.observe()
-            present = normalize(pattern) in observation.text_digest
-            holds = present if condition.kind == "text_present" else not present
-            return holds, observation.text_digest[:300]
-
-        return False, f"unrecognised condition kind {condition.kind!r}"
 
     # -- outputs -----------------------------------------------------------
 

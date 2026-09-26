@@ -131,13 +131,42 @@ class RunFinished:
     timestamp: str = field(default_factory=_now)
 
 
-Record = RunStarted | StepStarted | StepFinished | RunFinished
+@dataclass
+class ModelDecision:
+    """Discovery-only: the model's raw decision, before ref validation or
+
+    guardrail checks run. Exists for exactly one reason -- "a structured log
+    of what the agent did and *why*" (the brief's evidence requirement) means
+    the model's stated reasoning, not just the action that resulted. Recorded
+    even when the ref turns out to be invalid, so a reviewer can see what was
+    claimed against what was actually validated/executed in the surrounding
+    step_started/step_finished pair.
+    """
+
+    kind: str = field(default="model_decision", init=False)
+    schema_version: str = field(default=SCHEMA_VERSION, init=False)
+    run_id: str = ""
+    step_index: int = 0
+    action: str = ""
+    ref: str | None = None
+    value: str | None = None
+    reason: str = ""
+    sensitive: bool = False
+    timestamp: str = field(default_factory=_now)
+
+    def __post_init__(self) -> None:
+        if self.sensitive and self.value is not None:
+            self.value = REDACTED
+
+
+Record = RunStarted | StepStarted | StepFinished | RunFinished | ModelDecision
 
 _KIND_TO_TYPE: dict[str, type] = {
     "run_started": RunStarted,
     "step_started": StepStarted,
     "step_finished": StepFinished,
     "run_finished": RunFinished,
+    "model_decision": ModelDecision,
 }
 
 
