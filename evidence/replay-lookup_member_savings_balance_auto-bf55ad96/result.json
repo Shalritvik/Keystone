@@ -1,0 +1,75 @@
+{
+  "capability_id": "lookup_member_savings_balance_auto",
+  "capability_version": 1,
+  "content_hash": "0ee4634bf4070b0b",
+  "duration_ms": 505,
+  "escalation_id": null,
+  "evidence_dir": "/Users/shalritviksinha/Desktop/Interfacai/Project/evidence/replay-lookup_member_savings_balance_auto-bf55ad96",
+  "expected": null,
+  "failed_step": null,
+  "failure_kind": null,
+  "message": "",
+  "observed": null,
+  "outcome_code": null,
+  "outcome_description": null,
+  "outputs": {
+    "regular_savings_balance": "4,182.55"
+  },
+  "run_id": "replay-lookup_member_savings_balance_auto-bf55ad96",
+  "status": "success",
+  "steps": [
+    {
+      "action": "navigate",
+      "detail": "",
+      "duration_ms": 127,
+      "expected": null,
+      "index": -1,
+      "observed": null,
+      "recoveries_applied": [],
+      "resolved": null,
+      "status": "ok",
+      "target": "http://127.0.0.1:8800/t/pinnacle/lookup",
+      "value": null
+    },
+    {
+      "action": "type",
+      "detail": "",
+      "duration_ms": 172,
+      "expected": "the field visibly holds the value just set",
+      "index": 0,
+      "observed": "12345",
+      "recoveries_applied": [],
+      "resolved": "primary",
+      "status": "ok",
+      "target": "textbox \"Member #:\"",
+      "value": "12345"
+    },
+    {
+      "action": "click",
+      "detail": "",
+      "duration_ms": 128,
+      "expected": "the control the next step needs is now present",
+      "index": 1,
+      "observed": null,
+      "recoveries_applied": [],
+      "resolved": "primary",
+      "status": "ok",
+      "target": "button \"Search\"",
+      "value": null
+    },
+    {
+      "action": "read",
+      "detail": "",
+      "duration_ms": 25,
+      "expected": null,
+      "index": 2,
+      "observed": null,
+      "recoveries_applied": [],
+      "resolved": "primary",
+      "status": "ok",
+      "target": "cell \"Regular Savings Balance:\"",
+      "value": null
+    }
+  ],
+  "tenant": null
+}

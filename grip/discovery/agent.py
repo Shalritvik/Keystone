@@ -268,6 +268,54 @@ async def discover(
 
     run_id = f"discover-{capability_id}-{uuid.uuid4().hex[:8]}"
     writer = EvidenceWriter(settings.evidence_dir / run_id)
+    try:
+        return await _discover_with_writer(
+            goal, entry_url, capability_id=capability_id, tenant=tenant, settings=settings,
+            policy=policy, llm=llm, verify_params=verify_params, escalation_controller=escalation_controller,
+            run_id=run_id, writer=writer,
+        )
+    finally:
+        # Previously never called at all: the discovery evidence writer's
+        # file handle leaked for the life of the process, and -- more
+        # visibly -- its run.jsonl never got a result.json, so "presence
+        # means finished" (the documented evidence convention every replay
+        # run already honours) was simply false for every discovery run.
+        # Found curating the evidence deliverable: a genuinely successful
+        # discovery run's own directory looked indistinguishable from a
+        # crashed one.
+        writer.close()
+
+
+def _write_discovery_result(writer: EvidenceWriter, outcome: DiscoveryOutcome) -> DiscoveryOutcome:
+    writer.write_result(
+        {
+            "ok": outcome.ok,
+            "reason": outcome.reason,
+            "discovery_run_id": outcome.discovery_run_id,
+            "verification_run_id": outcome.verification_run_id,
+            "stopped_reason": outcome.stopped_reason,
+            "artifact_path": outcome.artifact_path,
+            "capability_id": outcome.artifact.capability_id if outcome.artifact else None,
+            "steps_recorded": len(outcome.trace),
+        }
+    )
+    return outcome
+
+
+async def _discover_with_writer(
+    goal: str,
+    entry_url: str,
+    *,
+    capability_id: str,
+    tenant: str | None,
+    settings: Settings,
+    policy: Policy,
+    llm: LLMClient,
+    verify_params: dict[str, str] | None,
+    escalation_controller: EscalationController | None,
+    run_id: str,
+    writer: EvidenceWriter,
+) -> DiscoveryOutcome:
     guardrails = Guardrails(policy, attended=False)
 
     raw = await PlaywrightSurface.create(headless=settings.headless, action_timeout_s=settings.action_timeout_s)
@@ -282,7 +330,9 @@ async def discover(
         nav = await guarded.act(ActionRequest(action="navigate", url=entry_url))
         if not nav.ok:
             writer.write(RunFinished(run_id=run_id, status="failure", duration_ms=int((time.monotonic() - start) * 1000)))
-            return DiscoveryOutcome(ok=False, reason=f"could not reach entry url: {nav.detail}", discovery_run_id=run_id)
+            return _write_discovery_result(
+                writer, DiscoveryOutcome(ok=False, reason=f"could not reach entry url: {nav.detail}", discovery_run_id=run_id)
+            )
 
         trace, stopped_reason = await _run_loop(
             guarded, llm, guardrails, goal, settings, writer, run_id,
@@ -297,14 +347,18 @@ async def discover(
         )
 
         if stopped_reason != "model_done":
-            return DiscoveryOutcome(
-                ok=False, reason=f"stopped before declaring done: {stopped_reason}",
-                discovery_run_id=run_id, trace=trace, stopped_reason=stopped_reason,
+            return _write_discovery_result(
+                writer, DiscoveryOutcome(
+                    ok=False, reason=f"stopped before declaring done: {stopped_reason}",
+                    discovery_run_id=run_id, trace=trace, stopped_reason=stopped_reason,
+                )
             )
         if not trace:
-            return DiscoveryOutcome(
-                ok=False, reason="model declared done with no successful actions recorded",
-                discovery_run_id=run_id, stopped_reason=stopped_reason,
+            return _write_discovery_result(
+                writer, DiscoveryOutcome(
+                    ok=False, reason="model declared done with no successful actions recorded",
+                    discovery_run_id=run_id, stopped_reason=stopped_reason,
+                )
             )
 
         artifact = compile_artifact(
@@ -317,10 +371,12 @@ async def discover(
         # condition against the SAME live session independently.
         ok, observed = await evaluate_condition(guarded, artifact.success, _params_from_trace(trace))
         if not ok:
-            return DiscoveryOutcome(
-                ok=False,
-                reason=f"model declared done but the synthesised success condition did not hold: {observed}",
-                artifact=artifact, discovery_run_id=run_id, trace=trace, stopped_reason=stopped_reason,
+            return _write_discovery_result(
+                writer, DiscoveryOutcome(
+                    ok=False,
+                    reason=f"model declared done but the synthesised success condition did not hold: {observed}",
+                    artifact=artifact, discovery_run_id=run_id, trace=trace, stopped_reason=stopped_reason,
+                )
             )
     finally:
         await guarded.close()
@@ -341,14 +397,16 @@ async def discover(
         await verify_guarded.close()
 
     if not verify_result.ok:
-        return DiscoveryOutcome(
-            ok=False,
-            reason=(
-                f"compiled artifact did not generalise to different params {params_to_use}: "
-                f"{verify_result.status} ({verify_result.message or verify_result.observed})"
-            ),
-            artifact=artifact, discovery_run_id=run_id, verification_run_id=verify_run_id,
-            trace=trace, stopped_reason=stopped_reason,
+        return _write_discovery_result(
+            writer, DiscoveryOutcome(
+                ok=False,
+                reason=(
+                    f"compiled artifact did not generalise to different params {params_to_use}: "
+                    f"{verify_result.status} ({verify_result.message or verify_result.observed})"
+                ),
+                artifact=artifact, discovery_run_id=run_id, verification_run_id=verify_run_id,
+                trace=trace, stopped_reason=stopped_reason,
+            )
         )
 
     artifact.seal()
@@ -356,10 +414,12 @@ async def discover(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(artifact.model_dump_json(indent=2))
 
-    return DiscoveryOutcome(
-        ok=True,
-        reason="discovered, verified independently against the live surface, and passed generalisation replay",
-        artifact=artifact, artifact_path=str(out_path),
-        discovery_run_id=run_id, verification_run_id=verify_run_id,
-        trace=trace, stopped_reason=stopped_reason,
+    return _write_discovery_result(
+        writer, DiscoveryOutcome(
+            ok=True,
+            reason="discovered, verified independently against the live surface, and passed generalisation replay",
+            artifact=artifact, artifact_path=str(out_path),
+            discovery_run_id=run_id, verification_run_id=verify_run_id,
+            trace=trace, stopped_reason=stopped_reason,
+        )
     )

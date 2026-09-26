@@ -1,0 +1,10 @@
+{
+  "artifact_path": "/Users/shalritviksinha/Desktop/Interfacai/Project/artifacts/lookup_member_savings_balance_auto.v1.json",
+  "capability_id": "lookup_member_savings_balance_auto",
+  "discovery_run_id": "discover-lookup_member_savings_balance_auto-f513e1c0",
+  "ok": true,
+  "reason": "discovered, verified independently against the live surface, and passed generalisation replay",
+  "steps_recorded": 3,
+  "stopped_reason": "model_done",
+  "verification_run_id": "verify-lookup_member_savings_balance_auto-74f89db4"
+}

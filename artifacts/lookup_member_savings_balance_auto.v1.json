@@ -107,7 +107,7 @@
       "settle_ms": 0,
       "risk": "safe",
       "captures": null,
-      "note": "Enter member number to search"
+      "note": "Enter member number"
     },
     {
       "index": 1,
@@ -155,7 +155,7 @@
       "settle_ms": 0,
       "risk": "safe",
       "captures": null,
-      "note": "Click the Search button to retrieve the member's account information."
+      "note": "Click the Search button to retrieve member details."
     },
     {
       "index": 2,
@@ -211,13 +211,13 @@
     "note": ""
   },
   "provenance": {
-    "discovered_at": "2026-09-26T18:55:13+00:00",
-    "discovery_run_id": "discover-lookup_member_savings_balance_auto-d5ed7776",
+    "discovered_at": "2026-09-26T20:41:31+00:00",
+    "discovery_run_id": "discover-lookup_member_savings_balance_auto-f513e1c0",
     "model": "openai/gpt-oss-20b",
     "model_base_url": "https://integrate.api.nvidia.com/v1",
     "steps_explored": 3,
     "human_interventions": 0,
     "policy_version": "1",
-    "content_hash": "1e5781e111976828"
+    "content_hash": "0ee4634bf4070b0b"
   }
 }
