@@ -34,8 +34,12 @@ def test_load_artifact_picks_the_highest_version(tmp_path):
     base = json.loads(LOOKUP_ARTIFACT.read_text())
 
     for version in (1, 2, 10):  # numeric ordering, not lexical -- v10 must beat v2
-        data = dict(base, version=version)
-        (tmp_path / f"lookup_member_savings_balance.v{version}.json").write_text(json.dumps(data))
+        # Changing `version` changes the sealed content, so re-seal each
+        # variant -- otherwise _check_seal (correctly) refuses it as an
+        # approved artifact edited after approval.
+        artifact = CapabilityArtifact.model_validate(dict(base, version=version))
+        artifact.seal()
+        (tmp_path / f"lookup_member_savings_balance.v{version}.json").write_text(artifact.model_dump_json())
 
     artifact, path = _load_artifact(settings, "lookup_member_savings_balance")
     assert artifact.version == 10
@@ -46,6 +50,39 @@ def test_load_artifact_raises_when_nothing_matches(tmp_path):
     settings = Settings(artifact_dir=tmp_path)
     with pytest.raises(SystemExit):
         _load_artifact(settings, "no_such_capability")
+
+
+def test_load_artifact_refuses_an_approved_artifact_hand_edited_after_approval(tmp_path):
+    """Regression test: seal()/compute_hash() exist specifically to let a
+
+    reviewer's approval bind to exact content, but nothing checked the
+    stored hash against the loaded content -- verified live, a hand-edited
+    checkpoint pattern on an approved artifact went completely unnoticed.
+    """
+    settings = Settings(artifact_dir=tmp_path)
+    data = json.loads(LOOKUP_ARTIFACT.read_text())
+    assert data["approval"]["state"] == "approved"
+    data["steps"][1]["checkpoint"]["pattern"] = "hand-edited-after-approval"
+    (tmp_path / "lookup_member_savings_balance.v1.json").write_text(json.dumps(data))
+
+    with pytest.raises(SystemExit, match="does not match the hash"):
+        _load_artifact(settings, "lookup_member_savings_balance")
+
+
+def test_load_artifact_allows_an_unsealed_draft(tmp_path):
+    """A draft makes no promise about its content yet, so an empty or
+
+    stale content_hash on a draft is not an error -- only an approved
+    artifact's hash is load-bearing.
+    """
+    settings = Settings(artifact_dir=tmp_path)
+    data = json.loads(LOOKUP_ARTIFACT.read_text())
+    data["approval"]["state"] = "draft"
+    data["steps"][1]["checkpoint"]["pattern"] = "edited-while-still-a-draft"
+    (tmp_path / "lookup_member_savings_balance.v1.json").write_text(json.dumps(data))
+
+    artifact, _path = _load_artifact(settings, "lookup_member_savings_balance")
+    assert artifact.approval.state == "draft"
 
 
 def test_replay_param_flag_survives_any_ordering_relative_to_other_flags():
@@ -117,3 +154,27 @@ def test_catalog_skips_a_malformed_artifact_instead_of_crashing(tmp_path, monkey
     assert "skipping unreadable artifact" in out.err
     schemas = json.loads(out.out)
     assert [s["function"]["name"] for s in schemas] == ["lookup_member_savings_balance"]
+
+
+def test_catalog_skips_an_approved_artifact_hand_edited_after_approval(tmp_path, monkeypatch, capsys):
+    """A tampered "approved" artifact must not be handed to a calling agent
+
+    as a trustworthy tool schema -- catalog's whole job is to be that
+    agent-facing surface (module docstring), so this is the same integrity
+    gap as replay, checked at the same seam _check_seal already covers.
+    """
+    from argparse import Namespace
+
+    from grip.cli import cmd_catalog
+
+    monkeypatch.setenv("GRIP_ARTIFACT_DIR", str(tmp_path))
+    tampered = json.loads(LOOKUP_ARTIFACT.read_text())
+    tampered["steps"][1]["checkpoint"]["pattern"] = "hand-edited-after-approval"
+    (tmp_path / "tampered.v1.json").write_text(json.dumps(tampered))
+
+    exit_code = cmd_catalog(Namespace(state="all"))
+    out = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "does not match the hash" in out.err
+    assert json.loads(out.out) == []

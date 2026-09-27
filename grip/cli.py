@@ -39,12 +39,39 @@ def _version_of(path: Path) -> int:
     return int(match.group(1)) if match else 0
 
 
+def _check_seal(artifact: CapabilityArtifact, path: Path) -> None:
+    """Refuses a hand-edited approved artifact rather than replaying it silently.
+
+    ``seal()`` hashes everything except provenance/approval specifically so
+    that its identity survives approval and re-recording (schemas.py's
+    ``compute_hash`` docstring) -- but nothing checks that identity against
+    anything, which means an approved artifact edited on disk after the
+    fact (a step's target, a checkpoint pattern) replays exactly as if a
+    human had reviewed the edited version. Verified live: hand-editing an
+    approved artifact's checkpoint pattern left its stored content_hash
+    unchanged and nothing noticed. Only checked for approved artifacts --
+    a draft makes no promise about its content yet (CLAUDE.md rule 8).
+    """
+    if artifact.approval.state != "approved" or not artifact.provenance.content_hash:
+        return
+    if artifact.provenance.content_hash != artifact.compute_hash():
+        raise SystemExit(
+            f"error: {path} is marked approved but its content does not match the hash "
+            f"recorded at approval time (expected {artifact.provenance.content_hash}, got "
+            f"{artifact.compute_hash()}). It was edited after approval -- re-approve it "
+            "(`approve`, re-run reliability) or restore it, rather than replaying content "
+            "nobody has reviewed."
+        )
+
+
 def _load_artifact(settings: Settings, capability_id: str) -> tuple[CapabilityArtifact, Path]:
     candidates = list(settings.artifact_dir.glob(f"{capability_id}.v*.json"))
     if not candidates:
         raise SystemExit(f"no artifact found for capability_id {capability_id!r} in {settings.artifact_dir}")
     path = max(candidates, key=_version_of)
-    return CapabilityArtifact.model_validate(json.loads(path.read_text())), path
+    artifact = CapabilityArtifact.model_validate(json.loads(path.read_text()))
+    _check_seal(artifact, path)
+    return artifact, path
 
 
 def _parse_params(pairs: list[str]) -> dict[str, str]:
@@ -160,12 +187,19 @@ def cmd_catalog(args: argparse.Namespace) -> int:
     for candidate_path in sorted(settings.artifact_dir.glob("*.json")):
         try:
             artifact = CapabilityArtifact.model_validate(json.loads(candidate_path.read_text()))
+            _check_seal(artifact, candidate_path)
         except (json.JSONDecodeError, ValidationError) as exc:
             # One unrelated bad file (a WIP hand-edit, a leftover from a
             # crashed process) must not take the whole catalog down for
             # every other, perfectly good capability -- found live: a
             # single malformed artifacts/*.json crashed catalog entirely.
             print(f"warning: skipping unreadable artifact {candidate_path}: {exc}", file=sys.stderr)
+            continue
+        except SystemExit as exc:
+            # An approved-but-tampered artifact is worse than unreadable --
+            # do not hand a calling agent a tool schema for content nobody
+            # has actually reviewed.
+            print(f"warning: skipping {candidate_path}: {exc}", file=sys.stderr)
             continue
         if args.state != "all" and artifact.approval.state != args.state:
             continue
