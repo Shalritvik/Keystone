@@ -23,8 +23,18 @@ def substitute(text: str, params: dict[str, str]) -> str:
 
     Lets a checkpoint recorded once (e.g. "the field holds ${member_id}")
     stay correct no matter which member number a given run was called with.
+    The substituted value is ``re.escape``d -- the only caller (``evaluate``,
+    below) always drops the result straight into ``re.search`` as a regex
+    pattern, and a param value is arbitrary data, not a regex fragment a
+    discovery run or artifact author meant to write. Verified live: an
+    unescaped "." in a param value (e.g. an account number "12.45") let
+    ``ax_value_matches`` wildcard-match a field that actually held a
+    different value ("12X45") -- exactly the kind of silent false-positive
+    design rule 6's independent success check exists to prevent.
     """
-    return _PARAM_TOKEN.sub(lambda m: params.get(m.group(1), m.group(0)), text)
+    return _PARAM_TOKEN.sub(
+        lambda m: re.escape(params[m.group(1)]) if m.group(1) in params else m.group(0), text
+    )
 
 
 async def evaluate(surface: Surface, condition: Condition, params: dict[str, str]) -> tuple[bool, str | None]:
