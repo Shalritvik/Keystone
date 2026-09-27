@@ -125,7 +125,19 @@ async def _run_loop(
             stuck_reason = "repeated_failures"
 
         if stuck_reason is not None:
-            if escalation_controller is not None and escalations_used < MAX_DISCOVERY_ESCALATIONS:
+            # Only "stuck_no_progress"/"repeated_failures" are things a human
+            # can actually clear (dismiss a dialog, log back in) -- both
+            # reset their own counters below, so resuming genuinely gives the
+            # model a fresh chance. "max_steps"/"timeout" are hard bounds
+            # that resuming cannot touch: step_index and the run's elapsed
+            # time are unaffected by human action, so the very next
+            # iteration would immediately re-hit the identical stuck_reason.
+            # Found live: with a controller given, either bound burned all
+            # of MAX_DISCOVERY_ESCALATIONS back-to-back -- real human
+            # interruptions -- for a condition no intervention could fix,
+            # and the model never got another turn in between.
+            recoverable = stuck_reason in ("stuck_no_progress", "repeated_failures")
+            if recoverable and escalation_controller is not None and escalations_used < MAX_DISCOVERY_ESCALATIONS:
                 escalations_used += 1
                 await escalation_controller.raise_intervention(
                     run_id=run_id, capability_id=None, goal=goal, step_index=step_index,
