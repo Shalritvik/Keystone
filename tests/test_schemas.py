@@ -290,6 +290,24 @@ def test_to_tool_schema_omits_non_required_params_from_required_list():
     assert schema["function"]["parameters"]["required"] == []
 
 
+def test_to_tool_schema_surfaces_the_example_value():
+    """Regression test: ParamSpec.example was declared and set on every
+
+    real artifact, but to_tool_schema() -- the method whose own docstring
+    calls it "the whole point of typing the artifact" -- never read it, so
+    a calling agent never saw the sample value an artifact author wrote.
+    """
+    a = make_artifact(params=[ParamSpec(name="member_id", example="12345")])
+    props = a.to_tool_schema()["function"]["parameters"]["properties"]
+    assert props["member_id"]["example"] == "12345"
+
+
+def test_to_tool_schema_omits_example_key_when_unset():
+    a = make_artifact(params=[ParamSpec(name="member_id")])
+    props = a.to_tool_schema()["function"]["parameters"]["properties"]
+    assert "example" not in props["member_id"]
+
+
 # ---- ReplayResult.ok -----------------------------------------
 
 

@@ -200,7 +200,9 @@ class ParamSpec(BaseModel):
     pattern: str | None = Field(
         default=None, description="Optional regex the value must satisfy before replay starts."
     )
-    example: str | None = None
+    example: str | None = Field(
+        default=None, description="Sample value surfaced to a calling agent via to_tool_schema()."
+    )
     sensitive: bool = Field(
         default=False,
         description=(
@@ -583,6 +585,8 @@ class CapabilityArtifact(BaseModel):
             entry: dict[str, Any] = {"type": type_map[p.type], "description": p.description}
             if p.pattern:
                 entry["pattern"] = p.pattern
+            if p.example:
+                entry["example"] = p.example
             props[p.name] = entry
         return {
             "type": "function",
