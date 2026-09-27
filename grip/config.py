@@ -182,6 +182,12 @@ class Policy:
 
     # -- loading ----------------------------------------------------------
 
+    _LIST_FIELDS = (
+        "allowed_origins", "allowed_route_patterns", "denied_route_patterns",
+        "allowed_actions", "risky_actions", "risky_control_patterns",
+        "forbidden_control_patterns", "sensitive_field_patterns",
+    )
+
     @classmethod
     def load(cls, path: Path | str | None = None) -> "Policy":
         path = Path(path) if path else DEFAULT_POLICY_PATH
@@ -198,6 +204,21 @@ class Policy:
                 f"Unknown key(s) in {path}: {sorted(unknown)}. "
                 "Refusing to load a policy we don't fully understand."
             )
+        # A dataclass does not enforce field types on its own, and a YAML
+        # typo here is easy to make and dangerous to miss: `allowed_actions:
+        # click` (missing the `- ` list syntax) loads as the *string*
+        # "click", and `"lick" in self.allowed_actions` -- a substring
+        # check, not the intended list-membership one -- silently returns
+        # True. This is exactly the failure mode design rule 4 exists to
+        # prevent ("the policy is a gate, not a prompt"), so it is checked
+        # explicitly rather than trusted to a runtime TypeError showing up
+        # somewhere unrelated much later.
+        for key in cls._LIST_FIELDS:
+            if key in raw and not isinstance(raw[key], list):
+                raise ValueError(
+                    f"{key!r} in {path} must be a YAML list, got {type(raw[key]).__name__}: "
+                    f"{raw[key]!r}. Refusing to load a policy we don't fully understand."
+                )
         return cls(**raw)
 
     # -- compiled matchers ------------------------------------------------

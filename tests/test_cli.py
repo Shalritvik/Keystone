@@ -93,3 +93,27 @@ def test_catalog_defaults_to_all_states():
 
 def test_saved_artifact_is_still_valid_against_the_schema():
     CapabilityArtifact.model_validate(json.loads(LOOKUP_ARTIFACT.read_text()))
+
+
+def test_catalog_skips_a_malformed_artifact_instead_of_crashing(tmp_path, monkeypatch, capsys):
+    """Regression test: one unrelated bad file in artifacts/ (a WIP hand-edit,
+
+    a leftover from a crashed process) previously crashed catalog entirely,
+    hiding every other, perfectly good capability behind a traceback.
+    """
+    from argparse import Namespace
+
+    from grip.cli import cmd_catalog
+
+    monkeypatch.setenv("GRIP_ARTIFACT_DIR", str(tmp_path))
+    (tmp_path / "broken.v1.json").write_text("{ not valid json")
+    good = json.loads(LOOKUP_ARTIFACT.read_text())
+    (tmp_path / "good.v1.json").write_text(json.dumps(good))
+
+    exit_code = cmd_catalog(Namespace(state="all"))
+    out = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "skipping unreadable artifact" in out.err
+    schemas = json.loads(out.out)
+    assert [s["function"]["name"] for s in schemas] == ["lookup_member_savings_balance"]

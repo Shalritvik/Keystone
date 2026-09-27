@@ -212,10 +212,21 @@ class ParamSpec(BaseModel):
 
 
 class Extraction(BaseModel):
-    """Where an output value comes from on the final surface state."""
+    """Where an output value comes from on the final surface state.
+
+    ``attribute`` is currently always treated as ``"value"`` by the replay
+    engine regardless of what's declared here -- the surface's read action
+    (``grip/surface/web.py``) computes one unified concept, "the content
+    this node exists to convey" (see its module docstring), not three
+    separate text/value/name readings. ``"text"``/``"name"`` are reserved
+    for a surface that can genuinely distinguish them; declaring one today
+    is accepted but has no effect. Defaults to ``"value"`` -- the thing
+    that's actually implemented -- rather than ``"text"``, so an artifact
+    that omits this field isn't told one thing and given another.
+    """
 
     locator: AXLocator
-    attribute: Literal["text", "value", "name"] = "text"
+    attribute: Literal["text", "value", "name"] = "value"
     capture_pattern: str | None = Field(
         default=None,
         description="Optional regex; if it has a capture group, group 1 becomes the value.",

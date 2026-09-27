@@ -226,3 +226,31 @@ async def test_required_output_with_non_participating_capture_group_fails_loudly
     assert result.status == "failure"
     assert result.failure_kind == "output_missing"
     assert result.outputs == {}
+
+
+@pytest.mark.asyncio
+async def test_tenant_override_param_defaults_applies_and_can_be_overridden(engine):
+    """Regression test: TenantOverride.param_defaults was declared in the
+
+    schema and documented but never read anywhere -- a tenant author
+    setting it would see it silently do nothing.
+    """
+    from grip.schemas import AXLocator, CapabilityArtifact, Condition, Step, SurfaceBinding, TenantOverride, ValueSource
+
+    field = AXLocator(role="textbox", name="Member #:", name_match="normalized", frame_path=[], ordinal=0)
+    artifact = CapabilityArtifact(
+        capability_id="param_defaults_test", version=1, title="t", description="d", goal="g",
+        surface=SurfaceBinding(kind="web", entry="http://127.0.0.1:8800/t/pinnacle/lookup"),
+        steps=[Step(index=0, action="type", target=field, value=ValueSource(kind="param", param="member_id"))],
+        params=[{"name": "member_id", "required": True}],
+        success=Condition(kind="ax_present", locator=field, description="field present"),
+        tenant_overrides=[TenantOverride(tenant="pinnacle", param_defaults={"member_id": "12345"})],
+    )
+
+    no_params = await engine.run(artifact, {}, tenant="pinnacle")
+    assert no_params.status == "success"
+    assert no_params.steps[1].value == "12345"
+
+    overridden = await engine.run(artifact, {"member_id": "22881"}, tenant="pinnacle")
+    assert overridden.status == "success"
+    assert overridden.steps[1].value == "22881"

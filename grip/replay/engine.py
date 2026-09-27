@@ -161,6 +161,16 @@ class ReplayEngine:
         tenant: str | None = None,
         run_id: str | None = None,
     ) -> ReplayResult:
+        # Found dead: TenantOverride.param_defaults was declared in the
+        # schema and documented, but nothing read it -- a tenant author
+        # setting it would see it silently do nothing. Looked up here
+        # (rather than inside for_tenant(), which only transforms the
+        # artifact, not the separate params dict) and merged so a
+        # caller-supplied value always wins over a tenant default.
+        override = next((o for o in artifact.tenant_overrides if o.tenant == tenant), None) if tenant else None
+        if override and override.param_defaults:
+            params = {**override.param_defaults, **params}
+
         artifact = artifact.for_tenant(tenant)
         self._validate_params(artifact, params)
 
@@ -554,6 +564,11 @@ class ReplayEngine:
 
         rule 6. Nothing captured mid-flow (``Step.captures``) is trusted as
         the returned value, even if a step captured the same thing already.
+
+        ``spec.source.attribute`` is not consulted here -- see
+        ``Extraction.attribute``'s own docstring for why: the surface has
+        one unified read concept, not three, so there is nothing to switch
+        on yet.
         """
         outputs: dict[str, Any] = {}
         for spec in ctx.artifact.outputs:

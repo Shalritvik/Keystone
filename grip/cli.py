@@ -23,6 +23,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from grip.config import Policy, Settings
 from grip.discovery.agent import discover as run_discovery
 from grip.guardrails import GuardedSurface, Guardrails
@@ -156,7 +158,15 @@ def cmd_catalog(args: argparse.Namespace) -> int:
     settings = Settings.from_env()
     schemas = []
     for candidate_path in sorted(settings.artifact_dir.glob("*.json")):
-        artifact = CapabilityArtifact.model_validate(json.loads(candidate_path.read_text()))
+        try:
+            artifact = CapabilityArtifact.model_validate(json.loads(candidate_path.read_text()))
+        except (json.JSONDecodeError, ValidationError) as exc:
+            # One unrelated bad file (a WIP hand-edit, a leftover from a
+            # crashed process) must not take the whole catalog down for
+            # every other, perfectly good capability -- found live: a
+            # single malformed artifacts/*.json crashed catalog entirely.
+            print(f"warning: skipping unreadable artifact {candidate_path}: {exc}", file=sys.stderr)
+            continue
         if args.state != "all" and artifact.approval.state != args.state:
             continue
         schemas.append(artifact.to_tool_schema())
