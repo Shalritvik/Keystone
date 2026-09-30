@@ -57,6 +57,7 @@ def compile_artifact(
     discovery_run_id: str,
     model: str,
     model_base_url: str,
+    version: int = 1,
 ) -> CapabilityArtifact:
     params: dict[str, ParamSpec] = {}
     steps: list[Step] = []
@@ -93,7 +94,7 @@ def compile_artifact(
 
     return CapabilityArtifact(
         capability_id=capability_id,
-        version=1,
+        version=version,
         title=capability_id.replace("_", " ").title(),
         description=f"Auto-discovered capability for the goal: {goal!r}. Draft -- human review required before approval.",
         goal=goal,

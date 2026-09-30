@@ -84,23 +84,52 @@ def _parse_params(pairs: list[str]) -> dict[str, str]:
     return params
 
 
+def _next_discovery_version(settings: Settings, capability_id: str, *, force: bool) -> int:
+    """Picks the version slot a fresh discovery run should write to.
+
+    No existing artifact: start at v1, as always. An existing *draft* is
+    still provisional -- nothing has reviewed it yet -- so re-discovering
+    overwrites it in place; forking off a new version number for every
+    tuning iteration would just litter the artifact store. An existing
+    *approved* artifact is different: it may be running unattended in
+    production right now, and silently overwriting it would destroy the
+    exact content a human reviewed, with no diff and no rollback -- the
+    file `--force` used to just clobber. Found live: `--force` skipped the
+    approved-check but the save path was still hardcoded to `.v1.json`, so
+    forcing a re-discovery of an approved capability didn't supersede it,
+    it erased it. Approved now bumps to the next version instead; refusing
+    without `--force` is unchanged.
+    """
+    candidates = list(settings.artifact_dir.glob(f"{capability_id}.v*.json"))
+    if not candidates:
+        return 1
+    latest_path = max(candidates, key=_version_of)
+    latest = CapabilityArtifact.model_validate(json.loads(latest_path.read_text()))
+    latest_version = _version_of(latest_path)
+    if latest.approval.state == "approved" and force:
+        return latest_version + 1
+    return latest_version
+
+
 async def cmd_discover(args: argparse.Namespace) -> int:
     settings = Settings.from_env()
-    target_path = settings.artifact_dir / f"{args.capability_id}.v1.json"
-    if target_path.exists() and not args.force:
-        existing = CapabilityArtifact.model_validate(json.loads(target_path.read_text()))
+    candidates = list(settings.artifact_dir.glob(f"{args.capability_id}.v*.json"))
+    if candidates and not args.force:
+        latest_path = max(candidates, key=_version_of)
+        existing = CapabilityArtifact.model_validate(json.loads(latest_path.read_text()))
         if existing.approval.state == "approved":
             print(
-                f"error: {target_path} is an approved artifact. Re-run with --force to let a "
-                "fresh discovery run overwrite it, or use a different --capability-id.",
+                f"error: {latest_path} is an approved artifact. Re-run with --force to let a "
+                "fresh discovery run save as a new version, or use a different --capability-id.",
                 file=sys.stderr,
             )
             return 2
 
+    version = _next_discovery_version(settings, args.capability_id, force=args.force)
     verify_params = _parse_params(args.verify_param) if args.verify_param else None
     outcome = await run_discovery(
         args.goal, args.entry, capability_id=args.capability_id, tenant=args.tenant,
-        verify_params=verify_params,
+        verify_params=verify_params, version=version,
     )
 
     print(f"ok={outcome.ok}", file=sys.stderr)
@@ -217,7 +246,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_discover.add_argument("--entry", required=True)
     p_discover.add_argument("--tenant")
     p_discover.add_argument("--capability-id", required=True)
-    p_discover.add_argument("--force", action="store_true", help="allow overwriting an approved artifact")
+    p_discover.add_argument(
+        "--force", action="store_true",
+        help="rediscover an approved capability as a new version instead of refusing",
+    )
     p_discover.add_argument(
         "--verify-param", action="append", metavar="key=value",
         help=(

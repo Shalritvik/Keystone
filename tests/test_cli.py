@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from keystone.cli import _load_artifact, _parse_params, build_parser
+from keystone.cli import _load_artifact, _next_discovery_version, _parse_params, build_parser
 from keystone.config import Settings
 from keystone.schemas import CapabilityArtifact
 
@@ -50,6 +50,64 @@ def test_load_artifact_raises_when_nothing_matches(tmp_path):
     settings = Settings(artifact_dir=tmp_path)
     with pytest.raises(SystemExit):
         _load_artifact(settings, "no_such_capability")
+
+
+# ---- _next_discovery_version -----------------------------------------
+#
+# Regression coverage: `--force` used to skip the approved-check but still
+# save to the hardcoded `.v1.json` path, so forcing a rediscovery of an
+# approved capability didn't supersede it -- it erased the exact content a
+# human had reviewed, with no diff and no rollback. Fixed by bumping to the
+# next version instead of overwriting in place, but only when the existing
+# artifact is actually approved; an unreviewed draft still overwrites, since
+# forking a new version number on every tuning iteration would just litter
+# the artifact store with nothing anyone needs to review.
+
+
+def _write_version(tmp_path, base: dict, version: int, *, approved: bool) -> None:
+    data = dict(base, version=version)
+    if approved:
+        data["approval"] = {"state": "approved", "approved_by": "test", "note": ""}
+    else:
+        data["approval"] = {"state": "draft", "approved_by": None, "note": ""}
+    artifact = CapabilityArtifact.model_validate(data)
+    artifact.seal()
+    (tmp_path / f"lookup_member_savings_balance.v{version}.json").write_text(artifact.model_dump_json())
+
+
+def test_next_discovery_version_starts_at_one_when_nothing_exists(tmp_path):
+    settings = Settings(artifact_dir=tmp_path)
+    assert _next_discovery_version(settings, "lookup_member_savings_balance", force=False) == 1
+
+
+def test_next_discovery_version_overwrites_an_unreviewed_draft_in_place(tmp_path):
+    base = json.loads(LOOKUP_ARTIFACT.read_text())
+    _write_version(tmp_path, base, 1, approved=False)
+    settings = Settings(artifact_dir=tmp_path)
+    assert _next_discovery_version(settings, "lookup_member_savings_balance", force=False) == 1
+
+
+def test_next_discovery_version_bumps_an_approved_artifact_only_with_force(tmp_path):
+    base = json.loads(LOOKUP_ARTIFACT.read_text())
+    _write_version(tmp_path, base, 1, approved=True)
+    settings = Settings(artifact_dir=tmp_path)
+
+    # cmd_discover refuses before ever reaching this without --force; called
+    # directly, the function's own contract is "no bump unless forced".
+    assert _next_discovery_version(settings, "lookup_member_savings_balance", force=False) == 1
+    assert _next_discovery_version(settings, "lookup_member_savings_balance", force=True) == 2
+
+
+def test_next_discovery_version_targets_the_highest_existing_version(tmp_path):
+    base = json.loads(LOOKUP_ARTIFACT.read_text())
+    _write_version(tmp_path, base, 1, approved=True)
+    _write_version(tmp_path, base, 2, approved=False)  # a later draft, not yet reviewed
+    settings = Settings(artifact_dir=tmp_path)
+
+    # The highest version (2) is a draft, so it overwrites in place --
+    # v1's approval is untouched and not what force is even evaluated against.
+    assert _next_discovery_version(settings, "lookup_member_savings_balance", force=False) == 2
+    assert _next_discovery_version(settings, "lookup_member_savings_balance", force=True) == 2
 
 
 def test_load_artifact_refuses_an_approved_artifact_hand_edited_after_approval(tmp_path):

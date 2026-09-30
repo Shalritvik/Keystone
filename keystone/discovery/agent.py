@@ -270,6 +270,7 @@ async def discover(
     policy: Policy | None = None,
     verify_params: dict[str, str] | None = None,
     escalation_controller: EscalationController | None = None,
+    version: int = 1,
 ) -> DiscoveryOutcome:
     settings = settings or Settings.from_env()
     policy = policy or Policy.load(settings.policy_path)
@@ -284,7 +285,7 @@ async def discover(
         return await _discover_with_writer(
             goal, entry_url, capability_id=capability_id, tenant=tenant, settings=settings,
             policy=policy, llm=llm, verify_params=verify_params, escalation_controller=escalation_controller,
-            run_id=run_id, writer=writer,
+            run_id=run_id, writer=writer, version=version,
         )
     finally:
         # Previously never called at all: the discovery evidence writer's
@@ -327,6 +328,7 @@ async def _discover_with_writer(
     escalation_controller: EscalationController | None,
     run_id: str,
     writer: EvidenceWriter,
+    version: int = 1,
 ) -> DiscoveryOutcome:
     guardrails = Guardrails(policy, attended=False)
 
@@ -377,6 +379,7 @@ async def _discover_with_writer(
             capability_id=capability_id, goal=goal, entry_url=entry_url, tenant=tenant,
             trace=trace, policy=policy, discovery_run_id=run_id,
             model=settings.llm_model, model_base_url=settings.llm_base_url,
+            version=version,
         )
 
         # (2) Never trust the "done" claim: assert the compiled success
