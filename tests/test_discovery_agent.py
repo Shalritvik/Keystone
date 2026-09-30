@@ -1,4 +1,4 @@
-"""Tests for grip/discovery/agent.py's stuck-detection/escalation logic in
+"""Tests for keystone/discovery/agent.py's stuck-detection/escalation logic in
 
 _run_loop. These are pure logic tests -- no browser, no LLM -- because the
 scenarios exercised here (a hard bound already exceeded before the first
@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import pytest
 
-from grip.config import Policy, Settings
-from grip.discovery.agent import MAX_DISCOVERY_ESCALATIONS, _run_loop
-from grip.evidence import EvidenceWriter
-from grip.guardrails import Guardrails
-from grip.surface.base import ActionOutcome, Observation
+from keystone.config import Policy, Settings
+from keystone.discovery.agent import MAX_DISCOVERY_ESCALATIONS, _run_loop
+from keystone.evidence import EvidenceWriter
+from keystone.guardrails import Guardrails
+from keystone.surface.base import ActionOutcome, Observation
 
 
 class _FakeEscalationController:

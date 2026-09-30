@@ -1,4 +1,4 @@
-"""Tests for grip/guardrails.py -- a named test priority in CLAUDE.md.
+"""Tests for keystone/guardrails.py -- a named test priority in CLAUDE.md.
 
 Constructs Policy directly (not via Policy.load()) so these stay correct
 independent of whatever policy.yaml says at any given time.
@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-from grip.config import Policy
-from grip.guardrails import GuardedSurface, Guardrails
-from grip.surface.base import ActionOutcome, ActionRequest, AXNode, Observation, Surface
+from keystone.config import Policy
+from keystone.guardrails import GuardedSurface, Guardrails
+from keystone.surface.base import ActionOutcome, ActionRequest, AXNode, Observation, Surface
 
 
 def make_policy(**overrides) -> Policy:

@@ -1,9 +1,9 @@
 """The CLI: discover, replay, approve, catalog.
 
-    python -m grip discover "<goal>" --entry <url> --capability-id <id> [--tenant T] [--force]
-    python -m grip replay <capability_id> [param=value ...] [--tenant T] [--attended]
-    python -m grip approve <capability_id> [param=value ...] --by <name> [--note TEXT] [--runs N] [--force]
-    python -m grip catalog [--state draft|approved|deprecated|all]
+    python -m keystone discover "<goal>" --entry <url> --capability-id <id> [--tenant T] [--force]
+    python -m keystone replay <capability_id> [param=value ...] [--tenant T] [--attended]
+    python -m keystone approve <capability_id> [param=value ...] --by <name> [--note TEXT] [--runs N] [--force]
+    python -m keystone catalog [--state draft|approved|deprecated|all]
 
 ``catalog``'s default is ``all`` deliberately: this command is a human
 operator's view into the system, not the agent-facing surface itself -- a
@@ -25,13 +25,13 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from grip.config import Policy, Settings
-from grip.discovery.agent import discover as run_discovery
-from grip.guardrails import GuardedSurface, Guardrails
-from grip.reliability import ReliabilityReport, assess
-from grip.replay.engine import ReplayEngine
-from grip.schemas import CapabilityArtifact
-from grip.surface.web import PlaywrightSurface
+from keystone.config import Policy, Settings
+from keystone.discovery.agent import discover as run_discovery
+from keystone.guardrails import GuardedSurface, Guardrails
+from keystone.reliability import ReliabilityReport, assess
+from keystone.replay.engine import ReplayEngine
+from keystone.schemas import CapabilityArtifact
+from keystone.surface.web import PlaywrightSurface
 
 
 def _version_of(path: Path) -> int:
@@ -209,7 +209,7 @@ def cmd_catalog(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="grip")
+    parser = argparse.ArgumentParser(prog="keystone")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_discover = sub.add_parser("discover", help="run a real LLM-driven discovery session")

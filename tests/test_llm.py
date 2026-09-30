@@ -1,4 +1,4 @@
-"""Tests for grip/llm.py that need no network access and no API key --
+"""Tests for keystone/llm.py that need no network access and no API key --
 
 replay must never depend on this being configured, so that guarantee has to
 be checkable without one.
@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from grip.config import Settings
-from grip.llm import LLMClient, LLMError
+from keystone.config import Settings
+from keystone.llm import LLMClient, LLMError
 
 
 def test_unconfigured_without_api_key():

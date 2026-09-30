@@ -75,9 +75,9 @@ def clear_faults(mockapp_server):
 @pytest_asyncio.fixture
 async def guarded_surface(clear_faults):
     """One browser context per test -- never reused, per CLAUDE.md."""
-    from grip.config import Policy
-    from grip.guardrails import GuardedSurface, Guardrails
-    from grip.surface.web import PlaywrightSurface
+    from keystone.config import Policy
+    from keystone.guardrails import GuardedSurface, Guardrails
+    from keystone.surface.web import PlaywrightSurface
 
     raw = await PlaywrightSurface.create(headless=True)
     policy = Policy.load(REPO_ROOT / "policy.yaml")
@@ -94,7 +94,7 @@ async def surface(clear_faults):
 
     resolve()/perception directly, below the guardrail layer.
     """
-    from grip.surface.web import PlaywrightSurface
+    from keystone.surface.web import PlaywrightSurface
 
     s = await PlaywrightSurface.create(headless=True, action_timeout_s=5.0)
     try:

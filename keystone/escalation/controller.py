@@ -7,7 +7,7 @@ the human operates the *same* browser the automation was driving, not a
 screenshot relay or a fresh session. That is why ``EscalationController``
 holds a reference to the same ``GuardedSurface`` (and, underneath it, the
 same live Playwright/Chromium session) the run was already using, and why
-running headed (``GRIP_HEADLESS=0``) is what makes this real rather than
+running headed (``KEYSTONE_HEADLESS=0``) is what makes this real rather than
 theoretical: the Chromium window is a real OS window a person can click into
 directly the instant automation stops sending it commands, and it is still
 sitting on exactly the state the run left it in.
@@ -30,8 +30,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from grip.evidence import EscalationRaised, EscalationResumed, EvidenceWriter
-from grip.guardrails import GuardedSurface
+from keystone.evidence import EscalationRaised, EscalationResumed, EvidenceWriter
+from keystone.guardrails import GuardedSurface
 
 Control = Literal["automation", "human"]
 

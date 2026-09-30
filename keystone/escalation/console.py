@@ -23,7 +23,7 @@ try:
 except ImportError:  # pragma: no cover - exercised only if the dep is missing
     websockets = None  # type: ignore[assignment]
 
-from grip.escalation.controller import EscalationController
+from keystone.escalation.controller import EscalationController
 
 
 async def _handle_client(connection: "ServerConnection", controller: EscalationController) -> None:

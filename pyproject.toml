@@ -1,5 +1,5 @@
 [project]
-name = "grip"
+name = "keystone"
 version = "0.1.0"
 description = "Computer-use automation with deterministic replay for legacy back-office applications"
 requires-python = ">=3.11"

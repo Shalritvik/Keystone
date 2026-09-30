@@ -1,4 +1,4 @@
-# Safety policy for the grip automation system.
+# Safety policy for the keystone automation system.
 #
 # This file is the guardrail contract. It is read by a human reviewer and is
 # the single authority on what the automation may do. The system refuses to

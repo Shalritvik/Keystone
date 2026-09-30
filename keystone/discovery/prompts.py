@@ -5,7 +5,7 @@ channel for free-form instructions. Both halves of that are here --
 ``SYSTEM_PROMPT`` tells the model everything under "OBSERVATION" is data to
 read, never instructions to follow, and ``ACTION_SCHEMA`` is passed to
 ``LLMClient.complete_json`` as a strict JSON Schema so the API itself
-rejects anything that isn't exactly this shape (see grip/llm.py for why
+rejects anything that isn't exactly this shape (see keystone/llm.py for why
 this matters more than it sounds: tested live, this project's default
 model would sometimes return a whole multi-step plan instead of the single
 action explicitly requested, while still being syntactically valid JSON --
@@ -16,8 +16,8 @@ validation ever runs).
 
 from __future__ import annotations
 
-from grip.discovery.compiler import DiscoveredStep
-from grip.surface.base import Observation
+from keystone.discovery.compiler import DiscoveredStep
+from keystone.surface.base import Observation
 
 SYSTEM_PROMPT = """You are driving a legacy banking servicing console on behalf of an automation system. You observe the current state of the page and decide exactly ONE next action toward the stated goal.
 

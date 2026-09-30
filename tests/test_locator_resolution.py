@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from grip.schemas import AXLocator, SelectorFallback
+from keystone.schemas import AXLocator, SelectorFallback
 
 
 def broken_locator(**fallback_kwargs) -> AXLocator:
@@ -32,7 +32,7 @@ def broken_locator(**fallback_kwargs) -> AXLocator:
 
 @pytest.mark.asyncio
 async def test_primary_match_is_reported_when_it_matches(surface, mockapp_server):
-    from grip.surface.base import ActionRequest
+    from keystone.surface.base import ActionRequest
 
     await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/lookup"))
     obs = await surface.observe()
@@ -46,7 +46,7 @@ async def test_primary_match_is_reported_when_it_matches(surface, mockapp_server
 
 @pytest.mark.asyncio
 async def test_css_fallback_fires_when_primary_misses(surface, mockapp_server):
-    from grip.surface.base import ActionRequest
+    from keystone.surface.base import ActionRequest
 
     await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/lookup"))
     locator = broken_locator(strategy="css", expression='input[name="txtMbrNo"]')
@@ -58,7 +58,7 @@ async def test_css_fallback_fires_when_primary_misses(surface, mockapp_server):
 
 @pytest.mark.asyncio
 async def test_xpath_fallback_fires_when_primary_misses(surface, mockapp_server):
-    from grip.surface.base import ActionRequest
+    from keystone.surface.base import ActionRequest
 
     await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/lookup"))
     locator = broken_locator(strategy="xpath", expression='//input[@name="txtMbrNo"]')
@@ -70,7 +70,7 @@ async def test_xpath_fallback_fires_when_primary_misses(surface, mockapp_server)
 
 @pytest.mark.asyncio
 async def test_text_proximity_fallback_fires_when_primary_misses(surface, mockapp_server):
-    from grip.surface.base import ActionRequest
+    from keystone.surface.base import ActionRequest
 
     await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/lookup"))
     # Matches by substring against the real accessible name "Member #:".
@@ -83,7 +83,7 @@ async def test_text_proximity_fallback_fires_when_primary_misses(surface, mockap
 
 @pytest.mark.asyncio
 async def test_ax_role_ordinal_fallback_fires_when_primary_misses(surface, mockapp_server):
-    from grip.surface.base import ActionRequest
+    from keystone.surface.base import ActionRequest
 
     await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/lookup"))
     # The member field is the only textbox on this page -> ordinal 0.
@@ -102,7 +102,7 @@ async def test_fallbacks_are_tried_in_declared_order(surface, mockapp_server):
     through to the second and report *that* strategy, not silently prefer
     it or stop after the first fails.
     """
-    from grip.surface.base import ActionRequest
+    from keystone.surface.base import ActionRequest
 
     await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/lookup"))
     locator = AXLocator(
@@ -125,7 +125,7 @@ async def test_fallbacks_are_tried_in_declared_order(surface, mockapp_server):
 
 @pytest.mark.asyncio
 async def test_all_fallbacks_exhausted_reports_a_clear_reason(surface, mockapp_server):
-    from grip.surface.base import ActionRequest
+    from keystone.surface.base import ActionRequest
 
     await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/lookup"))
     locator = broken_locator(strategy="css", expression="#also-not-real")
@@ -142,7 +142,7 @@ async def test_fallback_is_scoped_to_the_locators_declared_frame(surface, mockap
     search the whole page -- otherwise a fallback could silently match the
     wrong frame's identically-structured control.
     """
-    from grip.surface.base import ActionRequest
+    from keystone.surface.base import ActionRequest
 
     await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/"))
     obs = await surface.observe()

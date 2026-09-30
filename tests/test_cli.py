@@ -1,4 +1,4 @@
-"""Tests for grip/cli.py's argument handling and guardrail behaviours that
+"""Tests for keystone/cli.py's argument handling and guardrail behaviours that
 
 don't need a live browser -- draft refusal, unknown capability, and the
 approve/overwrite protections all short-circuit before ever touching a
@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from grip.cli import _load_artifact, _parse_params, build_parser
-from grip.config import Settings
-from grip.schemas import CapabilityArtifact
+from keystone.cli import _load_artifact, _parse_params, build_parser
+from keystone.config import Settings
+from keystone.schemas import CapabilityArtifact
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOOKUP_ARTIFACT = REPO_ROOT / "artifacts" / "lookup_member_savings_balance.v1.json"
@@ -140,9 +140,9 @@ def test_catalog_skips_a_malformed_artifact_instead_of_crashing(tmp_path, monkey
     """
     from argparse import Namespace
 
-    from grip.cli import cmd_catalog
+    from keystone.cli import cmd_catalog
 
-    monkeypatch.setenv("GRIP_ARTIFACT_DIR", str(tmp_path))
+    monkeypatch.setenv("KEYSTONE_ARTIFACT_DIR", str(tmp_path))
     (tmp_path / "broken.v1.json").write_text("{ not valid json")
     good = json.loads(LOOKUP_ARTIFACT.read_text())
     (tmp_path / "good.v1.json").write_text(json.dumps(good))
@@ -165,9 +165,9 @@ def test_catalog_skips_an_approved_artifact_hand_edited_after_approval(tmp_path,
     """
     from argparse import Namespace
 
-    from grip.cli import cmd_catalog
+    from keystone.cli import cmd_catalog
 
-    monkeypatch.setenv("GRIP_ARTIFACT_DIR", str(tmp_path))
+    monkeypatch.setenv("KEYSTONE_ARTIFACT_DIR", str(tmp_path))
     tampered = json.loads(LOOKUP_ARTIFACT.read_text())
     tampered["steps"][1]["checkpoint"]["pattern"] = "hand-edited-after-approval"
     (tmp_path / "tampered.v1.json").write_text(json.dumps(tampered))

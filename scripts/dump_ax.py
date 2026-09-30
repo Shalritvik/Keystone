@@ -13,8 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from grip.surface.base import ActionRequest  # noqa: E402
-from grip.surface.web import PlaywrightSurface  # noqa: E402
+from keystone.surface.base import ActionRequest  # noqa: E402
+from keystone.surface.web import PlaywrightSurface  # noqa: E402
 
 
 async def main(url: str) -> None:

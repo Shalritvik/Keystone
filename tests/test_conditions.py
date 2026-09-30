@@ -1,4 +1,4 @@
-"""Tests for grip/conditions.py's substitute() -- pure regex-template logic,
+"""Tests for keystone/conditions.py's substitute() -- pure regex-template logic,
 
 no surface or browser needed. evaluate() itself is exercised end-to-end via
 the real checkpoints in tests/test_replay_engine.py.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 
-from grip.conditions import substitute
+from keystone.conditions import substitute
 
 
 def test_substitute_replaces_a_known_token():

@@ -13,8 +13,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from grip.config import Policy
-from grip.schemas import (
+from keystone.config import Policy
+from keystone.schemas import (
     AXLocator,
     CapabilityArtifact,
     Condition,

@@ -1,4 +1,4 @@
-"""Tests for grip/evidence.py.
+"""Tests for keystone/evidence.py.
 
 Priorities per CLAUDE.md: redaction happens at construction time, and the
 reader survives exactly the kind of file a killed writer leaves behind.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from grip.evidence import (
+from keystone.evidence import (
     REDACTED,
     EvidenceReader,
     EvidenceWriter,

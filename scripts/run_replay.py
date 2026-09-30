@@ -1,4 +1,4 @@
-"""Manual replay verification tool -- stands in for `python -m grip replay`
+"""Manual replay verification tool -- stands in for `python -m keystone replay`
 
 until the CLI exists (Phase 7). Loads an artifact, runs it once headless
 against a live surface, and prints the ReplayResult.
@@ -16,11 +16,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from grip.config import DEFAULT_ARTIFACT_DIR, Policy, Settings  # noqa: E402
-from grip.guardrails import GuardedSurface, Guardrails  # noqa: E402
-from grip.replay.engine import ReplayEngine  # noqa: E402
-from grip.schemas import CapabilityArtifact  # noqa: E402
-from grip.surface.web import PlaywrightSurface  # noqa: E402
+from keystone.config import DEFAULT_ARTIFACT_DIR, Policy, Settings  # noqa: E402
+from keystone.guardrails import GuardedSurface, Guardrails  # noqa: E402
+from keystone.replay.engine import ReplayEngine  # noqa: E402
+from keystone.schemas import CapabilityArtifact  # noqa: E402
+from keystone.surface.web import PlaywrightSurface  # noqa: E402
 
 
 async def main(capability_id: str, tenant: str | None, params: dict[str, str]) -> None:

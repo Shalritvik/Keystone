@@ -1,4 +1,4 @@
-"""Tests for grip/config.py's loading mechanics -- Policy.classify/url_allowed
+"""Tests for keystone/config.py's loading mechanics -- Policy.classify/url_allowed
 
 are already covered thoroughly in test_guardrails.py via Guardrails; this
 file covers what wasn't tested at all: Policy.load()'s file-level
@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 import yaml
 
-from grip.config import Policy, Settings
+from keystone.config import Policy, Settings
 
 
 def write_policy(tmp_path, data: dict) -> str:
@@ -69,7 +69,7 @@ def test_load_empty_file_uses_all_defaults(tmp_path):
 
 def test_the_real_policy_yaml_still_loads_cleanly():
     """The actual, committed policy.yaml -- not a synthetic stand-in."""
-    from grip.config import DEFAULT_POLICY_PATH
+    from keystone.config import DEFAULT_POLICY_PATH
 
     policy = Policy.load(DEFAULT_POLICY_PATH)
     assert "http://127.0.0.1:8800" in policy.allowed_origins
@@ -99,7 +99,7 @@ def test_from_env_generic_llm_api_key_is_a_fallback(monkeypatch, tmp_path):
     # otherwise refill NVIDIA_API_KEY right back in after delenv(), since
     # "override=False" only means "don't clobber an already-set var," not
     # "don't load the file at all."
-    monkeypatch.setattr("grip.config.DEFAULT_ENV_PATH", tmp_path / "no_such_env_file")
+    monkeypatch.setattr("keystone.config.DEFAULT_ENV_PATH", tmp_path / "no_such_env_file")
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
     monkeypatch.setenv("LLM_API_KEY", "generic-key")
     settings = Settings.from_env()
@@ -108,16 +108,16 @@ def test_from_env_generic_llm_api_key_is_a_fallback(monkeypatch, tmp_path):
 
 def test_from_env_headless_flag_parsing(monkeypatch):
     for value, expected in [("1", True), ("true", True), ("YES", True), ("0", False), ("false", False), ("no", False)]:
-        monkeypatch.setenv("GRIP_HEADLESS", value)
-        assert Settings.from_env().headless is expected, f"GRIP_HEADLESS={value!r}"
+        monkeypatch.setenv("KEYSTONE_HEADLESS", value)
+        assert Settings.from_env().headless is expected, f"KEYSTONE_HEADLESS={value!r}"
 
 
 def test_from_env_invalid_numeric_env_var_falls_back_to_default(monkeypatch):
-    monkeypatch.setenv("GRIP_MAX_STEPS", "not-a-number")
+    monkeypatch.setenv("KEYSTONE_MAX_STEPS", "not-a-number")
     settings = Settings.from_env()
     assert settings.max_steps == Settings.max_steps  # class default, not a crash
 
 
 def test_from_env_run_timeout_is_the_documented_default_without_override(monkeypatch):
-    monkeypatch.delenv("GRIP_RUN_TIMEOUT_S", raising=False)
+    monkeypatch.delenv("KEYSTONE_RUN_TIMEOUT_S", raising=False)
     assert Settings.from_env().run_timeout_s == 1200.0

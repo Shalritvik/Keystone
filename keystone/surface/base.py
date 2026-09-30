@@ -26,7 +26,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from grip.schemas import AXLocator
+from keystone.schemas import AXLocator
 
 # Roles a human operator can actually act on. Used to keep the observation
 # small enough to fit in a rate-limited model's context.
@@ -184,7 +184,7 @@ class AXNode:
 
 
 def _css_fallback(expression: str):
-    from grip.schemas import SelectorFallback
+    from keystone.schemas import SelectorFallback
 
     return SelectorFallback(
         strategy="css",

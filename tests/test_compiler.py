@@ -1,4 +1,4 @@
-"""Pure unit tests for grip/discovery/compiler.py -- no browser, no LLM,
+"""Pure unit tests for keystone/discovery/compiler.py -- no browser, no LLM,
 
 no API key. compile_artifact() is a deterministic transformation over an
 already-recorded trace, so it can be tested with a synthetic one.
@@ -6,9 +6,9 @@ already-recorded trace, so it can be tested with a synthetic one.
 
 from __future__ import annotations
 
-from grip.config import Policy
-from grip.discovery.compiler import DiscoveredStep, compile_artifact
-from grip.schemas import AXLocator
+from keystone.config import Policy
+from keystone.discovery.compiler import DiscoveredStep, compile_artifact
+from keystone.schemas import AXLocator
 
 
 def locator(role: str, name: str) -> AXLocator:

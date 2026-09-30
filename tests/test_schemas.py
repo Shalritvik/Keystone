@@ -1,4 +1,4 @@
-"""Tests for grip/schemas.py's validators and the artifact contract itself --
+"""Tests for keystone/schemas.py's validators and the artifact contract itself --
 
 named first in CLAUDE.md's testing priorities. Pure unit tests, no browser,
 no API key: these are pydantic model shape/behaviour checks.
@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from grip.schemas import (
+from keystone.schemas import (
     AXLocator,
     CapabilityArtifact,
     Condition,
@@ -87,7 +87,7 @@ def test_value_source_literal_allows_empty_string():
     """An intentional empty-string literal (e.g. "clear this field") is
 
     distinct from no value at all -- see the RecoveryRule bug this
-    distinction mattered for in grip/replay/engine.py.
+    distinction mattered for in keystone/replay/engine.py.
     """
     vs = ValueSource(kind="literal", value="")
     assert vs.value == ""

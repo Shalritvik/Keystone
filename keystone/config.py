@@ -116,13 +116,13 @@ class Settings:
             llm_base_url=os.getenv("LLM_BASE_URL", cls.llm_base_url),
             llm_model=os.getenv("LLM_MODEL", cls.llm_model),
             llm_max_tokens=int(_num("LLM_MAX_TOKENS", cls.llm_max_tokens)),
-            max_steps=int(_num("GRIP_MAX_STEPS", cls.max_steps)),
-            run_timeout_s=_num("GRIP_RUN_TIMEOUT_S", cls.run_timeout_s),
-            headless=_flag("GRIP_HEADLESS", cls.headless),
-            action_timeout_s=_num("GRIP_ACTION_TIMEOUT_S", cls.action_timeout_s),
-            artifact_dir=Path(os.getenv("GRIP_ARTIFACT_DIR", str(DEFAULT_ARTIFACT_DIR))),
-            evidence_dir=Path(os.getenv("GRIP_EVIDENCE_DIR", str(DEFAULT_EVIDENCE_DIR))),
-            policy_path=Path(os.getenv("GRIP_POLICY", str(DEFAULT_POLICY_PATH))),
+            max_steps=int(_num("KEYSTONE_MAX_STEPS", cls.max_steps)),
+            run_timeout_s=_num("KEYSTONE_RUN_TIMEOUT_S", cls.run_timeout_s),
+            headless=_flag("KEYSTONE_HEADLESS", cls.headless),
+            action_timeout_s=_num("KEYSTONE_ACTION_TIMEOUT_S", cls.action_timeout_s),
+            artifact_dir=Path(os.getenv("KEYSTONE_ARTIFACT_DIR", str(DEFAULT_ARTIFACT_DIR))),
+            evidence_dir=Path(os.getenv("KEYSTONE_EVIDENCE_DIR", str(DEFAULT_EVIDENCE_DIR))),
+            policy_path=Path(os.getenv("KEYSTONE_POLICY", str(DEFAULT_POLICY_PATH))),
         )
 
     @property

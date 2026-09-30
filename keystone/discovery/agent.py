@@ -1,7 +1,7 @@
 """The discovery agent: observe -> decide -> act, then verify before trusting
 
 any of it. This is the only place in the whole system that calls the model
-for a decision (grip/llm.py is the only place that *can*; this is the only
+for a decision (keystone/llm.py is the only place that *can*; this is the only
 place that *does*). Everything downstream -- the compiled artifact, the
 replay engine -- never calls it again.
 
@@ -38,25 +38,25 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from grip.conditions import evaluate as evaluate_condition
-from grip.config import Policy, Settings
-from grip.discovery.compiler import DiscoveredStep, compile_artifact
-from grip.discovery.prompts import ACTION_SCHEMA, SYSTEM_PROMPT, render_user_prompt
-from grip.escalation.controller import EscalationController
-from grip.evidence import EvidenceWriter, ModelDecision, RunFinished, RunStarted, StepFinished, StepStarted
-from grip.guardrails import GuardedSurface, Guardrails
-from grip.llm import LLMClient, LLMError
-from grip.replay.engine import ReplayEngine
-from grip.schemas import CapabilityArtifact
-from grip.surface.base import ActionRequest
+from keystone.conditions import evaluate as evaluate_condition
+from keystone.config import Policy, Settings
+from keystone.discovery.compiler import DiscoveredStep, compile_artifact
+from keystone.discovery.prompts import ACTION_SCHEMA, SYSTEM_PROMPT, render_user_prompt
+from keystone.escalation.controller import EscalationController
+from keystone.evidence import EvidenceWriter, ModelDecision, RunFinished, RunStarted, StepFinished, StepStarted
+from keystone.guardrails import GuardedSurface, Guardrails
+from keystone.llm import LLMClient, LLMError
+from keystone.replay.engine import ReplayEngine
+from keystone.schemas import CapabilityArtifact
+from keystone.surface.base import ActionRequest
 
 # Bounds how many times a single discovery run will pause for a human before
 # giving up -- the same "never unbounded" rule replay's escalation retry
-# enforces (see grip/replay/engine.py's max_escalation_attempts, added after
+# enforces (see keystone/replay/engine.py's max_escalation_attempts, added after
 # finding live that an unbounded version loops forever if the human resumes
 # without actually having fixed anything).
 MAX_DISCOVERY_ESCALATIONS = 2
-from grip.surface.web import PlaywrightSurface
+from keystone.surface.web import PlaywrightSurface
 
 
 @dataclass

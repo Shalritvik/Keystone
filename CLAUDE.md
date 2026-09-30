@@ -69,7 +69,7 @@ and if a change seems to require breaking one, stop and say so instead.
 ## Architecture
 
 ```
-grip/
+keystone/
   config.py          Settings (env) + Policy (policy.yaml). Done.
   schemas.py         The capability contract + replay result contract. Done.
   surface/

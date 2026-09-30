@@ -26,14 +26,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from grip.config import Policy, Settings  # noqa: E402
-from grip.escalation.controller import EscalationController  # noqa: E402
-from grip.evidence import EvidenceWriter  # noqa: E402
-from grip.guardrails import GuardedSurface, Guardrails  # noqa: E402
-from grip.replay.engine import ReplayEngine  # noqa: E402
-from grip.schemas import AXLocator, CapabilityArtifact  # noqa: E402
-from grip.surface.base import ActionRequest  # noqa: E402
-from grip.surface.web import PlaywrightSurface  # noqa: E402
+from keystone.config import Policy, Settings  # noqa: E402
+from keystone.escalation.controller import EscalationController  # noqa: E402
+from keystone.evidence import EvidenceWriter  # noqa: E402
+from keystone.guardrails import GuardedSurface, Guardrails  # noqa: E402
+from keystone.replay.engine import ReplayEngine  # noqa: E402
+from keystone.schemas import AXLocator, CapabilityArtifact  # noqa: E402
+from keystone.surface.base import ActionRequest  # noqa: E402
+from keystone.surface.web import PlaywrightSurface  # noqa: E402
 
 ARTIFACT_PATH = Path(__file__).resolve().parent.parent / "artifacts" / "open_subaccount.v1.json"
 POST_BUTTON = AXLocator(role="button", name="Post Transaction", name_match="normalized", frame_path=[], ordinal=0)

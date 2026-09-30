@@ -1,4 +1,4 @@
-"""Tests for grip/escalation/controller.py and its wiring into ReplayEngine.
+"""Tests for keystone/escalation/controller.py and its wiring into ReplayEngine.
 
 The pure test below needs no browser -- EscalationController's blocking
 behavior is asyncio machinery, testable with the same FakeSurface pattern
@@ -15,12 +15,12 @@ from pathlib import Path
 
 import pytest
 
-from grip.escalation.controller import EscalationController
-from grip.evidence import EvidenceWriter
-from grip.guardrails import GuardedSurface, Guardrails
-from grip.replay.engine import ReplayEngine
-from grip.schemas import AXLocator, CapabilityArtifact
-from grip.surface.base import ActionOutcome, ActionRequest, AXNode, Observation, Surface
+from keystone.escalation.controller import EscalationController
+from keystone.evidence import EvidenceWriter
+from keystone.guardrails import GuardedSurface, Guardrails
+from keystone.replay.engine import ReplayEngine
+from keystone.schemas import AXLocator, CapabilityArtifact
+from keystone.surface.base import ActionOutcome, ActionRequest, AXNode, Observation, Surface
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ARTIFACT_PATH = REPO_ROOT / "artifacts" / "open_subaccount.v1.json"

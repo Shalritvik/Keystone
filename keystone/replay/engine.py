@@ -1,10 +1,10 @@
 """Deterministic replay. No LLM anywhere in this file -- design rule 1.
 
 That is enforced by absence, not by a runtime check: nothing here imports
-``grip.llm``, and the only surface this engine is ever handed is a
-``GuardedSurface`` (grip/guardrails.py), never a raw one. Replay resolves
+``keystone.llm``, and the only surface this engine is ever handed is a
+``GuardedSurface`` (keystone/guardrails.py), never a raw one. Replay resolves
 stored locators, asserts checkpoints, and returns a typed
-:class:`~grip.schemas.ReplayResult`. An unrecognised state is an escalation
+:class:`~keystone.schemas.ReplayResult`. An unrecognised state is an escalation
 candidate or a hard failure, never a reason to call a model.
 
 The per-step control flow, in order, mirrors CLAUDE.md's contract exactly:
@@ -35,12 +35,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from grip.conditions import evaluate as evaluate_condition
-from grip.conditions import substitute as _substitute
-from grip.escalation.controller import EscalationController
-from grip.evidence import REDACTED, EvidenceWriter, RunFinished, RunStarted, StepFinished, StepStarted
-from grip.guardrails import GuardedSurface
-from grip.schemas import (
+from keystone.conditions import evaluate as evaluate_condition
+from keystone.conditions import substitute as _substitute
+from keystone.escalation.controller import EscalationController
+from keystone.evidence import REDACTED, EvidenceWriter, RunFinished, RunStarted, StepFinished, StepStarted
+from keystone.guardrails import GuardedSurface
+from keystone.schemas import (
     BusinessOutcome,
     CapabilityArtifact,
     ReplayResult,
@@ -48,7 +48,7 @@ from grip.schemas import (
     StepTrace,
     ValueSource,
 )
-from grip.surface.base import ActionRequest
+from keystone.surface.base import ActionRequest
 
 
 class ReplayError(RuntimeError):
@@ -135,7 +135,7 @@ class ReplayEngine:
     none given, an escalation trigger stops the run with
     ``status="escalated"`` exactly as it always did (every existing test
     keeps passing unchanged). Given one, the same trigger pauses for a real
-    human handoff instead -- see grip/escalation/controller.py.
+    human handoff instead -- see keystone/escalation/controller.py.
     """
 
     def __init__(

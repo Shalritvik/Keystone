@@ -14,10 +14,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from grip.config import Policy, RiskClass
-from grip.evidence import REDACTED
-from grip.schemas import AXLocator
-from grip.surface.base import ActionOutcome, ActionRequest, AXNode, Observation, Surface
+from keystone.config import Policy, RiskClass
+from keystone.evidence import REDACTED
+from keystone.schemas import AXLocator
+from keystone.surface.base import ActionOutcome, ActionRequest, AXNode, Observation, Surface
 
 Verdict = Literal["allow", "block", "escalate"]
 
@@ -103,7 +103,7 @@ class Guardrails:
 
         itself surfaces (e.g. a decision reason echoing a typed value). The
         canonical redaction point for evidence records is still their own
-        constructor (see grip/evidence.py) -- this exists so a guardrail
+        constructor (see keystone/evidence.py) -- this exists so a guardrail
         decision never becomes the leak the record redaction was meant to
         prevent.
         """

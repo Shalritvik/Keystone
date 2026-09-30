@@ -218,7 +218,7 @@ class Extraction(BaseModel):
 
     ``attribute`` is currently always treated as ``"value"`` by the replay
     engine regardless of what's declared here -- the surface's read action
-    (``grip/surface/web.py``) computes one unified concept, "the content
+    (``keystone/surface/web.py``) computes one unified concept, "the content
     this node exists to convey" (see its module docstring), not three
     separate text/value/name readings. ``"text"``/``"name"`` are reserved
     for a surface that can genuinely distinguish them; declaring one today
@@ -626,7 +626,7 @@ class StepTrace(BaseModel):
             "How the step's locator was actually matched -- 'primary' or which "
             "fallback strategy. Null for steps with no locator (navigate, wait). "
             "A capability that only ever resolves via fallbacks is drifting even "
-            "while it still technically replays; grip/reliability.py is what "
+            "while it still technically replays; keystone/reliability.py is what "
             "finally reads this back rather than letting it go to waste."
         ),
     )

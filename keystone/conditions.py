@@ -1,6 +1,6 @@
 """Evaluating a ``Condition`` against a live surface.
 
-Extracted out of ``grip/replay/engine.py`` when discovery needed the exact
+Extracted out of ``keystone/replay/engine.py`` when discovery needed the exact
 same capability: "never trust the model's claim that it's done -- assert
 the compiled artifact's success condition against the live surface
 yourself" (design rule 6) is mechanically the same operation replay already
@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import re
 
-from grip.schemas import Condition
-from grip.surface.base import ActionRequest, Surface, normalize
+from keystone.schemas import Condition
+from keystone.surface.base import ActionRequest, Surface, normalize
 
 _PARAM_TOKEN = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 

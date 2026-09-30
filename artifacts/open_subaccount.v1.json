@@ -114,7 +114,7 @@
         "description": "the transaction was posted and the confirmation screen is showing"
       },
       "risk": "risky",
-      "note": "The irreversible step. Escalates when unattended; see grip/escalation/controller.py for the handoff mechanism this step is designed to exercise."
+      "note": "The irreversible step. Escalates when unattended; see keystone/escalation/controller.py for the handoff mechanism this step is designed to exercise."
     }
   ],
 

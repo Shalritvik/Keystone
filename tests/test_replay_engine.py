@@ -13,8 +13,8 @@ from pathlib import Path
 import httpx
 import pytest
 
-from grip.replay.engine import ReplayEngine
-from grip.schemas import CapabilityArtifact
+from keystone.replay.engine import ReplayEngine
+from keystone.schemas import CapabilityArtifact
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ARTIFACT_PATH = REPO_ROOT / "artifacts" / "lookup_member_savings_balance.v1.json"
@@ -42,7 +42,7 @@ async def test_success_branch(engine, artifact):
     assert result.outputs["regular_savings_balance"] == "4,182.55"
     assert [s.status for s in result.steps] == ["ok", "ok", "ok", "ok"]
     # Every locator on this clean artifact resolves via primary match --
-    # the raw material grip/reliability.py reads back to score a run.
+    # the raw material keystone/reliability.py reads back to score a run.
     assert [s.resolved for s in result.steps[1:]] == ["primary", "primary", "primary"]
 
 
@@ -108,7 +108,7 @@ async def test_cross_tenant_replay_with_two_small_overrides(engine, artifact):
 
 @pytest.mark.asyncio
 async def test_evidence_trace_is_written_and_readable(engine, artifact):
-    from grip.evidence import EvidenceReader
+    from keystone.evidence import EvidenceReader
 
     result = await engine.run(artifact, {"member_id": "12345"})
     reader = EvidenceReader(result.evidence_dir)
@@ -122,7 +122,7 @@ async def test_evidence_trace_is_written_and_readable(engine, artifact):
 
 @pytest.mark.asyncio
 async def test_rejects_missing_required_param(engine, artifact):
-    from grip.replay.engine import ReplayError
+    from keystone.replay.engine import ReplayError
 
     with pytest.raises(ReplayError):
         await engine.run(artifact, {})
@@ -130,7 +130,7 @@ async def test_rejects_missing_required_param(engine, artifact):
 
 @pytest.mark.asyncio
 async def test_rejects_param_violating_its_pattern(engine, artifact):
-    from grip.replay.engine import ReplayError
+    from keystone.replay.engine import ReplayError
 
     with pytest.raises(ReplayError):
         await engine.run(artifact, {"member_id": "not-a-number"})
@@ -138,7 +138,7 @@ async def test_rejects_param_violating_its_pattern(engine, artifact):
 
 @pytest.mark.asyncio
 async def test_rejects_unknown_param(engine, artifact):
-    from grip.replay.engine import ReplayError
+    from keystone.replay.engine import ReplayError
 
     with pytest.raises(ReplayError):
         await engine.run(artifact, {"member_id": "12345", "extra": "x"})
@@ -156,7 +156,7 @@ async def test_a_recovery_action_that_itself_fails_is_not_falsely_reported_as_re
     then retry the original step against an unchanged obstacle, and the
     evidence trail would falsely claim the obstacle was cleared.
     """
-    from grip.schemas import (
+    from keystone.schemas import (
         AXLocator, CapabilityArtifact, Condition, RecoveryRule, Step, SurfaceBinding, ValueSource,
     )
 
@@ -196,7 +196,7 @@ async def test_required_output_with_non_participating_capture_group_fails_loudly
     silently came back None inside a status="success" result. Verified
     live before this fix existed.
     """
-    from grip.schemas import (
+    from keystone.schemas import (
         AXLocator, CapabilityArtifact, Condition, Extraction, OutputSpec, Step, SurfaceBinding, ValueSource,
     )
 
@@ -235,7 +235,7 @@ async def test_tenant_override_param_defaults_applies_and_can_be_overridden(engi
     schema and documented but never read anywhere -- a tenant author
     setting it would see it silently do nothing.
     """
-    from grip.schemas import AXLocator, CapabilityArtifact, Condition, Step, SurfaceBinding, TenantOverride, ValueSource
+    from keystone.schemas import AXLocator, CapabilityArtifact, Condition, Step, SurfaceBinding, TenantOverride, ValueSource
 
     field = AXLocator(role="textbox", name="Member #:", name_match="normalized", frame_path=[], ordinal=0)
     artifact = CapabilityArtifact(

@@ -1,7 +1,7 @@
 """NIM (OpenAI-compatible) client. The only file in this repo allowed to
 
 import ``openai`` and the only file discovery calls into for a model
-response. Nothing here is imported by ``grip/replay/engine.py`` -- design
+response. Nothing here is imported by ``keystone/replay/engine.py`` -- design
 rule 1 (no LLM in the replay path) is enforced by that absence, not by a
 runtime check.
 
@@ -20,7 +20,7 @@ from typing import Any
 
 from openai import AsyncOpenAI, RateLimitError
 
-from grip.config import Settings
+from keystone.config import Settings
 
 
 class LLMError(RuntimeError):

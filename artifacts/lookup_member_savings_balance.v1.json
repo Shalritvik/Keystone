@@ -44,7 +44,7 @@
               "weaker_because": "Falls back to substring-matching any node whose name contains this text, ignoring role and ordinal entirely -- used only if the primary role+name+ordinal match misses, e.g. after a markup change that adds an extra cell to the row."
             }
           ],
-          "rationale": "The value half of a label:value table-cell pair (see grip/surface/web.py's pairing heuristic): its accessible name is inherited from the caption cell physically to its left ('Regular Savings Balance:'), and its own text is exposed separately as AXNode.value. Because the label half of the pair is deliberately excluded from perception, this is the only 'cell' node with this name, so ordinal 0 is correct and not a smell here -- verified live: two candidate nodes existed before that exclusion was added, and the label (not the value) landed at ordinal 0, which silently returned the caption instead of the balance. Scoped to the top-level document (frame_path is empty) because the entry URL is the lookup page loaded directly, not through the tenant frameset."
+          "rationale": "The value half of a label:value table-cell pair (see keystone/surface/web.py's pairing heuristic): its accessible name is inherited from the caption cell physically to its left ('Regular Savings Balance:'), and its own text is exposed separately as AXNode.value. Because the label half of the pair is deliberately excluded from perception, this is the only 'cell' node with this name, so ordinal 0 is correct and not a smell here -- verified live: two candidate nodes existed before that exclusion was added, and the label (not the value) landed at ordinal 0, which silently returned the caption instead of the balance. Scoped to the top-level document (frame_path is empty) because the entry URL is the lookup page loaded directly, not through the tenant frameset."
         },
         "attribute": "value",
         "capture_pattern": null
@@ -71,7 +71,7 @@
             "weaker_because": "Structural selector tied to this specific HTML attribute name rather than rendered meaning; a vendor markup change that renames the field's `name` attribute (but keeps the caption) would break this fallback while the primary accessible-name match keeps working."
           }
         ],
-        "rationale": "The field carries no <label for> anywhere in this app -- its caption is the table cell physically to its left ('Member #:'), which is exactly the adjacent-cell heuristic grip/surface/web.py's accessible-name computation implements. Harbor Point renames this same field's caption to 'Account Number:' and reorders it in the form; a per-tenant TenantOverride patches the name for that tenant, but the reorder itself requires no change at all, since targeting is by name, not position."
+        "rationale": "The field carries no <label for> anywhere in this app -- its caption is the table cell physically to its left ('Member #:'), which is exactly the adjacent-cell heuristic keystone/surface/web.py's accessible-name computation implements. Harbor Point renames this same field's caption to 'Account Number:' and reorders it in the form; a per-tenant TenantOverride patches the name for that tenant, but the reorder itself requires no change at all, since targeting is by name, not position."
       },
       "value": {
         "kind": "param",
@@ -305,6 +305,6 @@
     "steps_explored": 0,
     "human_interventions": 0,
     "policy_version": "1",
-    "content_hash": "3d26712ca8537e71"
+    "content_hash": "650c59862a96ca70"
   }
 }

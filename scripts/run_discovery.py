@@ -1,4 +1,4 @@
-"""Manual discovery verification tool -- stands in for `python -m grip discover`
+"""Manual discovery verification tool -- stands in for `python -m keystone discover`
 
 until the CLI exists (Phase 7).
 
@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from grip.discovery.agent import discover  # noqa: E402
+from keystone.discovery.agent import discover  # noqa: E402
 
 
 async def main(goal: str, entry: str, tenant: str | None, capability_id: str, verify_params: dict[str, str]) -> None:

@@ -82,8 +82,8 @@ from playwright.async_api import (
     async_playwright,
 )
 
-from grip.schemas import AXLocator, SelectorFallback
-from grip.surface.base import (
+from keystone.schemas import AXLocator, SelectorFallback
+from keystone.surface.base import (
     ActionOutcome,
     ActionRequest,
     AXNode,

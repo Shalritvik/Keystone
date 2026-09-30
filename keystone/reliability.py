@@ -1,6 +1,6 @@
 """Scores how much evidence exists that an artifact is safe to approve.
 
-``ApprovalState``'s own docstring (grip/schemas.py) makes a specific claim:
+``ApprovalState``'s own docstring (keystone/schemas.py) makes a specific claim:
 "the first successful run is evidence that the flow works once, not that it
 is safe to run unattended against production." Nothing before this module
 actually measured the gap between those two things -- this closes it, using
@@ -30,9 +30,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from grip.guardrails import GuardedSurface
-from grip.replay.engine import ReplayEngine
-from grip.schemas import CapabilityArtifact
+from keystone.guardrails import GuardedSurface
+from keystone.replay.engine import ReplayEngine
+from keystone.schemas import CapabilityArtifact
 
 SurfaceFactory = Callable[[], Awaitable[GuardedSurface]]
 
@@ -63,7 +63,7 @@ class ReliabilityReport:
         completed with a usable answer, and every locator that resolved did
         so via its primary match -- no fallback quietly papering over
         drift. This is a recommendation, not a gate the tool enforces on
-        its own: an approver can always override it (see grip/cli.py's
+        its own: an approver can always override it (see keystone/cli.py's
         ``approve --force``), but they do so having been told, not having
         guessed.
         """

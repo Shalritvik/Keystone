@@ -1,7 +1,7 @@
 """Tests the WebSocket console as an actual client/server exchange -- the
 
 protocol genuinely works, even though the "operator UI" on top of it is
-deliberately just this raw JSON-lines exchange (see grip/escalation/console.py).
+deliberately just this raw JSON-lines exchange (see keystone/escalation/console.py).
 """
 
 from __future__ import annotations
@@ -12,10 +12,10 @@ import json
 import pytest
 import websockets
 
-from grip.escalation.console import serve_console
-from grip.escalation.controller import EscalationController
-from grip.evidence import EvidenceWriter
-from grip.surface.base import ActionOutcome, ActionRequest, AXNode, Observation, Surface
+from keystone.escalation.console import serve_console
+from keystone.escalation.controller import EscalationController
+from keystone.evidence import EvidenceWriter
+from keystone.surface.base import ActionOutcome, ActionRequest, AXNode, Observation, Surface
 
 
 class FakeSurface(Surface):

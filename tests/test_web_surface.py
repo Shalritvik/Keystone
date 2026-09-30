@@ -1,4 +1,4 @@
-"""Tests for grip/surface/web.py against the real mock app.
+"""Tests for keystone/surface/web.py against the real mock app.
 
 This file didn't exist until a deep adversarial pass found a real,
 completely untested bug here: `wait(ref=None)` -- exactly how discovery's
@@ -14,7 +14,7 @@ import time
 
 import pytest
 
-from grip.surface.base import ActionRequest
+from keystone.surface.base import ActionRequest
 
 
 @pytest.mark.asyncio

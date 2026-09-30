@@ -1,4 +1,4 @@
-"""Tests for grip/reliability.py against the real mock app -- the whole
+"""Tests for keystone/reliability.py against the real mock app -- the whole
 
 point of this module is measuring genuine replay behaviour, so a fake
 surface would just test that the arithmetic is right, not that the signal
@@ -13,11 +13,11 @@ from pathlib import Path
 import httpx
 import pytest
 
-from grip.config import Policy
-from grip.guardrails import GuardedSurface, Guardrails
-from grip.reliability import assess
-from grip.schemas import CapabilityArtifact
-from grip.surface.web import PlaywrightSurface
+from keystone.config import Policy
+from keystone.guardrails import GuardedSurface, Guardrails
+from keystone.reliability import assess
+from keystone.schemas import CapabilityArtifact
+from keystone.surface.web import PlaywrightSurface
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ARTIFACT_PATH = REPO_ROOT / "artifacts" / "lookup_member_savings_balance.v1.json"
@@ -63,7 +63,7 @@ async def test_an_injected_failure_makes_the_report_unhealthy(mockapp_server, tm
 
 
 def test_report_with_no_runs_is_not_healthy():
-    from grip.reliability import ReliabilityReport
+    from keystone.reliability import ReliabilityReport
 
     report = ReliabilityReport()
     assert report.is_healthy is False  # never silently "healthy" by vacuous default

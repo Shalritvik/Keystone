@@ -1,4 +1,4 @@
-# grip
+# keystone
 
 Computer-use automation for legacy back-office applications that expose no API.
 
@@ -22,7 +22,7 @@ cp .env.example .env    # then paste your NVIDIA_API_KEY into it
 The LLM is NVIDIA NIM's free hosted tier (OpenAI-compatible; get a key at
 build.nvidia.com, no card required). Any other OpenAI-compatible endpoint
 (vLLM, Ollama, a local NIM container) works by changing `LLM_BASE_URL` alone
--- `grip/llm.py` is the stock `openai` SDK pointed at a different base URL.
+-- `keystone/llm.py` is the stock `openai` SDK pointed at a different base URL.
 
 **Replay never calls a model.** The entire replay/approve/catalog path below
 needs no API key at all -- run it, and the test suite, with `NVIDIA_API_KEY`
@@ -36,12 +36,12 @@ needs one.
 | `NVIDIA_API_KEY` | -- | Required for `discover` only. |
 | `LLM_BASE_URL` | NIM's endpoint | Any OpenAI-compatible endpoint works. |
 | `LLM_MODEL` | `openai/gpt-oss-20b` | See "If discovery can't reach a model" below before changing this. |
-| `GRIP_MAX_STEPS` | `25` | Discovery's step budget before giving up. |
-| `GRIP_RUN_TIMEOUT_S` | `1200` | Wall-clock budget for a discovery run. Set this high, not low -- see below. |
-| `GRIP_HEADLESS` | `1` | Set to `0` to watch the browser; required for `replay --attended` and the escalation demo. |
-| `GRIP_POLICY` | `policy.yaml` | The reviewable safety-guardrail contract. |
+| `KEYSTONE_MAX_STEPS` | `25` | Discovery's step budget before giving up. |
+| `KEYSTONE_RUN_TIMEOUT_S` | `1200` | Wall-clock budget for a discovery run. Set this high, not low -- see below. |
+| `KEYSTONE_HEADLESS` | `1` | Set to `0` to watch the browser; required for `replay --attended` and the escalation demo. |
+| `KEYSTONE_POLICY` | `policy.yaml` | The reviewable safety-guardrail contract. |
 
-**Why `GRIP_RUN_TIMEOUT_S=1200`, not something smaller:** measured live
+**Why `KEYSTONE_RUN_TIMEOUT_S=1200`, not something smaller:** measured live
 against the NIM free tier, identical back-to-back calls to the *same* model
 ranged from ~2s to ~48s. That's shared-queue load on the free tier, not
 something a smaller prompt or a different model fixes (both were tested and
@@ -55,7 +55,7 @@ listing and invoke-permission are different account states there. If
 `LLM_MODEL` 404s with `Function ... not found for account`, that's this, not
 a broken key. `curl -H "Authorization: Bearer $NVIDIA_API_KEY"
 https://integrate.api.nvidia.com/v1/models` to see the catalog, and try a
-few candidates -- `grip/llm.py`'s `complete_json(..., schema=...)` requires
+few candidates -- `keystone/llm.py`'s `complete_json(..., schema=...)` requires
 `json_schema` strict-mode support, which not every listed model actually
 honours even when it does respond.
 
@@ -89,8 +89,8 @@ python -m pytest
 Run as `python -m pytest`, not bare `pytest` -- this project isn't
 pip-installed (no `[build-system]` in `pyproject.toml`, deliberately, to
 avoid a packaging step this scope doesn't need), so `-m` is what puts the
-repo root on `sys.path` for `import grip` to resolve. Bare `pytest` fails
-with `ModuleNotFoundError: No module named 'grip'`.
+repo root on `sys.path` for `import keystone` to resolve. Bare `pytest` fails
+with `ModuleNotFoundError: No module named 'keystone'`.
 
 144 tests, no API key required for any of them -- confirmed directly by
 running the full suite with `.env` removed and `NVIDIA_API_KEY`/`LLM_API_KEY`
@@ -109,35 +109,35 @@ for step 1 only, a working `NVIDIA_API_KEY` in `.env`.
 #    against the live page (never trusting the model's own "done" claim),
 #    then replaying it once more against a genuinely different member on a
 #    fresh browser context before ever saving it.
-python -m grip discover "look up member 12345 and read their regular savings balance" \
+python -m keystone discover "look up member 12345 and read their regular savings balance" \
   --entry http://127.0.0.1:8800/t/pinnacle/lookup --tenant pinnacle \
   --capability-id lookup_member_savings_balance_auto \
   --verify-param member_id=22881
 
 # 2. That artifact is still a *draft* -- unattended replay of a draft is
 #    refused by design. Replay it under supervision instead:
-python -m grip replay lookup_member_savings_balance_auto --param member_id=12345 --attended
+python -m keystone replay lookup_member_savings_balance_auto --param member_id=12345 --attended
 
 # 3. The hand-authored, already-approved artifact: a normal successful replay.
-python -m grip replay lookup_member_savings_balance --param member_id=12345
+python -m keystone replay lookup_member_savings_balance --param member_id=12345
 
 # 4. The same artifact hitting a real business outcome -- not an error.
-python -m grip replay lookup_member_savings_balance --param member_id=99999
+python -m keystone replay lookup_member_savings_balance --param member_id=99999
 
 # 5. ...and a permission-denied business outcome, distinguished from #4 by
 #    role (status vs. alert), never by scraping message text.
-python -m grip replay lookup_member_savings_balance --param member_id=44120
+python -m keystone replay lookup_member_savings_balance --param member_id=44120
 
 # 6. A replay that hits an injected fault and recovers (the message-of-the-
 #    day interstitial, dismissed automatically before it can block anything).
 curl -X POST http://127.0.0.1:8800/_faults/interstitial/arm
-python -m grip replay lookup_member_savings_balance --param member_id=22881
+python -m keystone replay lookup_member_savings_balance --param member_id=22881
 
 # 7. A replay that hits an injected fault and correctly does NOT recover --
 #    a hard failure with the failing step, what was expected, what was
 #    observed, and a real screenshot.
 curl -X POST http://127.0.0.1:8800/_faults/server_error/arm
-python -m grip replay lookup_member_savings_balance --param member_id=12345
+python -m keystone replay lookup_member_savings_balance --param member_id=12345
 curl -X POST http://127.0.0.1:8800/_faults/clear
 
 # 8. Promote a draft to approved. Runs the artifact N times first and
@@ -145,10 +145,10 @@ curl -X POST http://127.0.0.1:8800/_faults/clear
 #    resolving via its primary match (no fallback quietly papering over
 #    drift) -- --force overrides, on the human's own authority, not the
 #    tool's.
-python -m grip approve lookup_member_savings_balance_auto --by "your-name" --param member_id=12345 --runs 3
+python -m keystone approve lookup_member_savings_balance_auto --by "your-name" --param member_id=12345 --runs 3
 
 # 9. The agent-facing capability catalog, as OpenAI-style tool schemas.
-python -m grip catalog --state approved
+python -m keystone catalog --state approved
 ```
 
 Evidence for every run above lands in `evidence/<run-id>/`. Five real runs
@@ -177,7 +177,7 @@ step's own postcondition rather than blindly continuing at the next step
 ## Project layout
 
 ```
-grip/
+keystone/
   config.py          Settings (env) + Policy (policy.yaml)
   schemas.py          The capability contract + replay result contract
   conditions.py        Shared Condition evaluator (replay checkpoints, discovery's success check)

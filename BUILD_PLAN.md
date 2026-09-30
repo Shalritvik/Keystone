@@ -27,7 +27,7 @@ around: the lookup form, member 12345, member 99999 (not found), member 44120
 (restricted), and the fault panel at `/_faults/panel`. **Do this before writing
 any code.** You need to have seen the surface you are automating.
 
-Then create the public repo (`gh repo create grip --public --source=. `) and
+Then create the public repo (`gh repo create keystone --public --source=. `) and
 push. Commit at the end of every phase.
 
 ---
@@ -36,8 +36,8 @@ push. Commit at the end of every phase.
 
 The single hardest piece. Budget the most time here.
 
-> Read CLAUDE.md. Implement `grip/surface/web.py`: a `PlaywrightSurface` that
-> implements the `Surface` ABC in `grip/surface/base.py`.
+> Read CLAUDE.md. Implement `keystone/surface/web.py`: a `PlaywrightSurface` that
+> implements the `Surface` ABC in `keystone/surface/base.py`.
 >
 > Perception: walk every frame in the page, and for each frame compute an
 > accessibility view of its controls and named content. Use Chrome DevTools
@@ -86,7 +86,7 @@ accessible name?
 
 Small, and everything downstream depends on it.
 
-> Implement `grip/evidence.py` per the durability requirements in CLAUDE.md:
+> Implement `keystone/evidence.py` per the durability requirements in CLAUDE.md:
 > crash-safe append-only JSONL, `step_started`/`step_finished` pairs, fsync at
 > step boundaries, `schema_version` and `kind` on every record, a reader that
 > tolerates a truncated trailing line and skips unknown kinds, atomic
@@ -103,12 +103,12 @@ two records per step?
 
 ## Phase 3 — guardrails and the LLM client
 
-> Implement `grip/guardrails.py` as a thin enforcement layer over `Policy`: one
+> Implement `keystone/guardrails.py` as a thin enforcement layer over `Policy`: one
 > `check(action, target_node, url)` returning allow / block / escalate with a
 > reason, plus a `redact` helper. It must be impossible to reach the surface
 > without passing through it — wrap the surface rather than relying on callers.
 >
-> Implement `grip/llm.py`: the `openai` SDK pointed at `LLM_BASE_URL`, temperature
+> Implement `keystone/llm.py`: the `openai` SDK pointed at `LLM_BASE_URL`, temperature
 > 0, structured JSON output, exponential backoff with jitter on 429 capped per
 > `Settings`, and a `configured` guard so replay never needs a key.
 
@@ -130,7 +130,7 @@ discovery compiler a target shape to produce.
 > success condition, business outcomes for MEMBER_NOT_FOUND and
 > PERMISSION_DENIED, and a recovery rule for the message-of-the-day dialog.
 >
-> Then implement `grip/replay/engine.py`: validate params against their specs,
+> Then implement `keystone/replay/engine.py`: validate params against their specs,
 > apply any tenant override, and for each step resolve the locator, pass the
 > guardrail, act, and assert the checkpoint. On checkpoint failure, check the
 > declared business outcomes first, then the recovery rules (bounded by
@@ -143,13 +143,13 @@ discovery compiler a target shape to produce.
 Verify each branch by hand:
 
 ```bash
-python -m grip replay lookup_member_savings_balance --member_id 12345   # success
-python -m grip replay lookup_member_savings_balance --member_id 99999   # business
-python -m grip replay lookup_member_savings_balance --member_id 44120   # business
+python -m keystone replay lookup_member_savings_balance --member_id 12345   # success
+python -m keystone replay lookup_member_savings_balance --member_id 99999   # business
+python -m keystone replay lookup_member_savings_balance --member_id 44120   # business
 curl -XPOST localhost:8800/_faults/interstitial/arm
-python -m grip replay lookup_member_savings_balance --member_id 22881   # recovered
+python -m keystone replay lookup_member_savings_balance --member_id 22881   # recovered
 curl -XPOST localhost:8800/_faults/server_error/arm
-python -m grip replay lookup_member_savings_balance --member_id 12345   # failure
+python -m keystone replay lookup_member_savings_balance --member_id 12345   # failure
 ```
 
 **Checkpoint:** why is `ReplayResult.ok` true for a business outcome? What
@@ -160,7 +160,7 @@ not conceptually?
 
 ## Phase 5 — discovery
 
-> Implement `grip/discovery/prompts.py`, `agent.py` and `compiler.py`.
+> Implement `keystone/discovery/prompts.py`, `agent.py` and `compiler.py`.
 >
 > The loop: observe, render the observation compactly, ask the model for
 > exactly one typed action, validate the ref against the current observation,
@@ -186,7 +186,7 @@ not conceptually?
 Then the real run the brief requires:
 
 ```bash
-python -m grip discover "look up member 12345 and read their regular savings balance" \
+python -m keystone discover "look up member 12345 and read their regular savings balance" \
   --entry http://127.0.0.1:8800/t/pinnacle/lookup --tenant pinnacle
 ```
 
@@ -197,7 +197,7 @@ specific mechanism that catches each.
 
 ## Phase 6 — escalation and handoff
 
-> Implement `grip/escalation/controller.py` and `console.py`. Detect stuck
+> Implement `keystone/escalation/controller.py` and `console.py`. Detect stuck
 > (no-progress, repeated failure, unrecognised state) and risky-action
 > interception. Raise an intervention request carrying the capability or goal,
 > the current step, the surface state, a screenshot, and why it stopped.
@@ -216,7 +216,7 @@ breaks if you don't?
 
 ## Phase 7 — the CLI and the capability catalog
 
-> Implement `grip/cli.py` with `discover`, `replay`, `approve`, and `catalog`.
+> Implement `keystone/cli.py` with `discover`, `replay`, `approve`, and `catalog`.
 > `catalog` lists saved artifacts as OpenAI-style tool schemas via
 > `to_tool_schema()` — this is the agent-facing capability interface, and it is
 > the one stretch goal worth having. `approve` moves an artifact from draft to
