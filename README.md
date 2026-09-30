@@ -83,10 +83,16 @@ python -m mockapp        # binds to http://127.0.0.1:8800 only
 ## Running the tests
 
 ```bash
-pytest
+python -m pytest
 ```
 
-110 tests, no API key required for any of them -- confirmed directly by
+Run as `python -m pytest`, not bare `pytest` -- this project isn't
+pip-installed (no `[build-system]` in `pyproject.toml`, deliberately, to
+avoid a packaging step this scope doesn't need), so `-m` is what puts the
+repo root on `sys.path` for `import grip` to resolve. Bare `pytest` fails
+with `ModuleNotFoundError: No module named 'grip'`.
+
+144 tests, no API key required for any of them -- confirmed directly by
 running the full suite with `.env` removed and `NVIDIA_API_KEY`/`LLM_API_KEY`
 unset from the environment entirely. The suite starts the mock app itself
 (reusing one already running on :8800 if it finds one) and gives every test
