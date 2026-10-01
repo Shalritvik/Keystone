@@ -257,7 +257,19 @@
       "max_attempts": 2
     }
   ],
-  "escalations": [],
+  "escalations": [
+    {
+      "code": "SESSION_EXPIRED",
+      "description": "The session expired mid-flow and the app redirected to its sign-in screen.",
+      "detect": {
+        "kind": "url_matches",
+        "locator": null,
+        "pattern": "/signin",
+        "description": "the app bounced to the sign-in screen"
+      },
+      "guidance": "Re-authenticate in this live session, then resume -- automation cannot do this itself: policy.yaml explicitly denies the signin route to the agent, so there is no automated path through this state by design, not an oversight."
+    }
+  ],
   "tenant_overrides": [
     {
       "tenant": "harbor",
@@ -305,6 +317,6 @@
     "steps_explored": 0,
     "human_interventions": 0,
     "policy_version": "1",
-    "content_hash": "650c59862a96ca70"
+    "content_hash": "289e656791646002"
   }
 }

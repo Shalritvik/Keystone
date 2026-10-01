@@ -27,7 +27,10 @@ def artifact() -> CapabilityArtifact:
 
 @pytest.fixture
 def engine(guarded_surface, tmp_path) -> ReplayEngine:
-    return ReplayEngine(guarded_surface, tmp_path)
+    # Short poll bounds so a genuinely-failing checkpoint test doesn't pay
+    # the full production deadline (5s) on every run -- the polling
+    # behavior itself is covered by its own dedicated test below.
+    return ReplayEngine(guarded_surface, tmp_path, checkpoint_poll_timeout_s=0.3, checkpoint_poll_interval_s=0.05)
 
 
 def test_artifact_file_is_valid_against_the_schema():
@@ -87,6 +90,27 @@ async def test_recovers_from_interstitial_and_still_succeeds(engine, artifact, m
     assert result.outputs["regular_savings_balance"] == {"amount": "17640.12", "currency": "USD"}
     assert result.steps[0].status == "recovered"
     assert result.steps[0].recoveries_applied == ["DISMISS_MOTD_INTERSTITIAL"]
+
+
+@pytest.mark.asyncio
+async def test_session_expiry_escalates_instead_of_a_generic_locator_failure(engine, artifact, mockapp_server):
+    """Regression test: arming session_timeout bounced the page to the
+
+    sign-in screen, and replay had no way to tell that apart from any other
+    missing-field failure -- failure_kind="locator_not_found" with expected
+    and observed repeating the identical "no match for textbox..." string.
+    Found via external review, verified live before this fix existed. The
+    artifact now declares a SESSION_EXPIRED EscalationRule (a url_matches
+    check against "/signin") -- automation can't re-authenticate itself
+    even in principle, since policy.yaml explicitly denies the signin
+    route, so escalating to a human is the only correct response, not a
+    missing feature.
+    """
+    httpx.post(f"{mockapp_server}/_faults/session_timeout/arm")
+    result = await engine.run(artifact, {"member_id": "12345"})
+    assert result.status == "escalated"
+    assert result.escalation_id == "SESSION_EXPIRED"
+    assert result.message == "The session expired mid-flow and the app redirected to its sign-in screen."
 
 
 @pytest.mark.asyncio
@@ -288,3 +312,47 @@ def test_cast_money_falls_back_to_the_raw_string_when_it_cant_parse():
 
 def test_cast_money_none_stays_none():
     assert ReplayEngine._cast(None, "money") is None
+
+
+# ---- _poll_checkpoint -----------------------------------------------------
+#
+# Regression coverage: checkpoints were evaluated exactly once, with no
+# bounded retry -- a true-but-not-yet-rendered state (e.g. a client-side
+# DOM update that lands after the triggering action's own promise already
+# resolved) would read as a hard failure. Checked live first: the mock's
+# own slow_response fault turned out NOT to exercise this race at all
+# (Playwright's click/fill already blocks on the slow server response
+# before the checkpoint is ever evaluated), so this is tested directly
+# against the polling mechanism itself rather than through that fault.
+
+
+@pytest.mark.asyncio
+async def test_poll_checkpoint_succeeds_once_the_condition_turns_true(engine, monkeypatch):
+    calls = {"n": 0}
+
+    async def fake_evaluate(surface, condition, params):
+        calls["n"] += 1
+        return (calls["n"] >= 3), f"call {calls['n']}"
+
+    monkeypatch.setattr("keystone.replay.engine.evaluate_condition", fake_evaluate)
+    ok, observed = await engine._poll_checkpoint(condition=object(), params={})
+
+    assert ok is True
+    assert observed == "call 3"
+    assert calls["n"] == 3
+
+
+@pytest.mark.asyncio
+async def test_poll_checkpoint_gives_up_at_the_deadline_and_reports_the_last_observation(engine, monkeypatch):
+    calls = {"n": 0}
+
+    async def fake_evaluate(surface, condition, params):
+        calls["n"] += 1
+        return False, f"still not there, attempt {calls['n']}"
+
+    monkeypatch.setattr("keystone.replay.engine.evaluate_condition", fake_evaluate)
+    ok, observed = await engine._poll_checkpoint(condition=object(), params={})
+
+    assert ok is False
+    assert observed == f"still not there, attempt {calls['n']}"
+    assert calls["n"] > 1  # actually polled more than once within the (short, test-scoped) deadline

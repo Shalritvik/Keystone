@@ -27,6 +27,7 @@ The per-step control flow, in order, mirrors CLAUDE.md's contract exactly:
 
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 import uuid
@@ -146,11 +147,15 @@ class ReplayEngine:
         *,
         escalation_controller: EscalationController | None = None,
         max_escalation_attempts: int = 3,
+        checkpoint_poll_timeout_s: float = 5.0,
+        checkpoint_poll_interval_s: float = 0.25,
     ) -> None:
         self._surface = surface
         self._evidence_dir = Path(evidence_dir)
         self._escalation_controller = escalation_controller
         self._max_escalation_attempts = max_escalation_attempts
+        self._checkpoint_poll_timeout_s = checkpoint_poll_timeout_s
+        self._checkpoint_poll_interval_s = checkpoint_poll_interval_s
 
     # -- public entry point --------------------------------------------
 
@@ -202,7 +207,7 @@ class ReplayEngine:
             for step in artifact.steps:
                 traces.append(await self._run_step(ctx, step))
 
-            ok, observed = await evaluate_condition(self._surface, artifact.success, ctx.params)
+            ok, observed = await self._poll_checkpoint(artifact.success, ctx.params)
             if not ok:
                 last_index = artifact.steps[-1].index if artifact.steps else -1
                 raise _FailureSignal(
@@ -289,7 +294,7 @@ class ReplayEngine:
             observed: str | None = None
             expected: str | None = None
             if act_ok and step.checkpoint is not None:
-                checkpoint_ok, observed = await evaluate_condition(self._surface, step.checkpoint, ctx.params)
+                checkpoint_ok, observed = await self._poll_checkpoint(step.checkpoint, ctx.params)
                 expected = step.checkpoint.description or step.checkpoint.pattern
 
             if act_ok and checkpoint_ok:
@@ -453,6 +458,29 @@ class ReplayEngine:
                     duration_ms=duration_ms, detail=detail,
                 )
         return None
+
+    # -- checkpoints -----------------------------------------------------------
+
+    async def _poll_checkpoint(self, condition, params: dict[str, str]) -> tuple[bool, str | None]:
+        """Re-evaluates a condition until it holds or a bounded deadline passes.
+
+        Found live: a single evaluation immediately after an action meant a
+        slow-but-otherwise-successful page update (the mock's own
+        ``slow_response`` fault, or just an ordinarily sluggish legacy page)
+        read as a hard checkpoint failure -- the state the step actually
+        produced hadn't rendered yet, not that the step failed. Bounded,
+        not open-ended: ``checkpoint_poll_timeout_s`` caps total wait the
+        same way every other retry/recovery mechanism in this engine is
+        capped, so a genuinely-failed checkpoint still fails in bounded time
+        rather than hanging. Returns the *last* observed result so a
+        timeout still reports what was actually seen, not a stale first read.
+        """
+        deadline = time.monotonic() + self._checkpoint_poll_timeout_s
+        ok, observed = await evaluate_condition(self._surface, condition, params)
+        while not ok and time.monotonic() < deadline:
+            await asyncio.sleep(self._checkpoint_poll_interval_s)
+            ok, observed = await evaluate_condition(self._surface, condition, params)
+        return ok, observed
 
     # -- acting -----------------------------------------------------------
 
