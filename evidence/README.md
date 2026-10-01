@@ -10,7 +10,7 @@ One directory per run, named by run id.
 Local runs are gitignored. The demo runs referenced from README.md are
 committed explicitly.
 
-## The five committed runs
+## The six committed runs
 
 1. **`discover-lookup_member_savings_balance_auto-f513e1c0/`** -- the
    required genuine LLM-driven discovery run (`openai/gpt-oss-20b` via
@@ -47,7 +47,32 @@ committed explicitly.
    actual page the run was looking at when it gave up. This is the required
    "replay that hits an injected fault."
 
-Why two different artifacts across these five: the auto-discovered one
+6. **`discover-open_subaccount_auto-c3e6eb08/`** -- a second genuine
+   LLM-driven discovery run, this time against the harder multi-step,
+   multi-page sub-account flow (member # -> select type -> review -> post),
+   with the goal explicitly asking it to complete the irreversible step. The
+   model correctly selected "S07 - VACATION CLUB" from the live option list
+   (see `AXNode.options`, added after this exact run first failed on a
+   version of the fix that didn't exist yet -- the model had guessed the
+   bare label "VACATION CLUB", which matched no option), reached the review
+   screen, and clicked "Post Transaction" on its own reasoning. The guardrail
+   correctly refused it three times (`unattended_risky_disposition: escalate`
+   with no escalation controller wired into this CLI invocation, so refusal
+   -- not a pause-and-resume -- is what unattended means here), and the
+   bounded retry then stopped the run at `repeated_failures` rather than
+   looping or guessing. `ok: false`, no artifact saved -- correctly, since
+   the flow never completed. The pause/resume mechanics themselves (bounded
+   retries, a controller's `raise_intervention`/`resume`) are exercised in
+   `test_stuck_no_progress_still_escalates_and_gets_a_real_retry` in
+   `tests/test_discovery_agent.py`, but only against a fake surface and a
+   fake controller -- not this live browser session. Wiring a real,
+   connected controller into this exact CLI path, so a human could actually
+   resume past the refusal instead of it hard-stopping, is a known gap:
+   `python -m keystone discover` has no `--escalate` flag the way `replay`
+   does, and `discover()` builds its own browser session internally with no
+   way for a caller to hand it a pre-wired controller for that same session.
+
+Why two different artifacts across the first five: the auto-discovered one
 (#1-3) only ever observed the happy path, so it has no declared business
 outcomes yet -- correctly so, since rule 7 requires those to be
 human-reviewed and added, never inferred. Runs #4-5 use the hand-authored

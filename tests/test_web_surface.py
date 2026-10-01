@@ -98,3 +98,64 @@ async def test_screenshot_writes_a_real_png(surface, mockapp_server, tmp_path):
     assert ok is True
     assert path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
     assert not path.with_suffix(".png.part").exists()
+
+
+@pytest.mark.asyncio
+async def test_combobox_exposes_its_real_options(surface, mockapp_server):
+    """Regression test for a bug found during a real discovery run: the
+
+    sub-account type <select>'s options are labelled "S07 - VACATION CLUB"
+    (code + label), but neither the AXNode's name (never includes option
+    text) nor its value (the currently-selected one, here the blank
+    placeholder) told the model what it could actually pick -- it had no
+    way to know the real strings without guessing from the goal text alone.
+    """
+    await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/subaccount/new"))
+    obs = await surface.observe()
+    combo = next(n for n in obs.nodes if n.role == "combobox")
+    assert combo.options == [
+        "— Select —", "S02 - SECONDARY SAVINGS", "S07 - VACATION CLUB",
+        "S09 - HOLIDAY CLUB", "S12 - YOUTH SAVINGS",
+    ]
+    assert "options=" in combo.render()
+
+
+@pytest.mark.asyncio
+async def test_select_matches_the_exact_compound_label(surface, mockapp_server):
+    await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/subaccount/new"))
+    combo = next(n for n in (await surface.observe()).nodes if n.role == "combobox")
+    outcome = await surface.act(ActionRequest(action="select", ref=combo.ref, value="S07 - VACATION CLUB"))
+    assert outcome.ok is True
+
+
+@pytest.mark.asyncio
+async def test_select_falls_back_to_a_unique_substring_match(surface, mockapp_server):
+    """The exact bug found live: a caller passing the bare label ("VACATION
+
+    CLUB") that matches neither an option's value ("S07") nor its full label
+    ("S07 - VACATION CLUB") used to make Playwright's own select_option()
+    hang for the full action timeout, twice (label= then value=), before
+    failing. It now matches the one option that contains the requested text.
+    """
+    await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/subaccount/new"))
+    combo = next(n for n in (await surface.observe()).nodes if n.role == "combobox")
+    outcome = await surface.act(ActionRequest(action="select", ref=combo.ref, value="VACATION CLUB"))
+    assert outcome.ok is True
+
+    read_back = await surface.act(ActionRequest(action="read", ref=combo.ref))
+    assert read_back.read_value == "S07 - VACATION CLUB"
+
+
+@pytest.mark.asyncio
+async def test_select_with_no_matching_option_fails_fast_with_available_options_listed(surface, mockapp_server):
+    await surface.act(ActionRequest(action="navigate", url=f"{mockapp_server}/t/pinnacle/subaccount/new"))
+    combo = next(n for n in (await surface.observe()).nodes if n.role == "combobox")
+
+    t0 = time.monotonic()
+    outcome = await surface.act(ActionRequest(action="select", ref=combo.ref, value="GOLD MEMBERSHIP"))
+    elapsed = time.monotonic() - t0
+
+    assert outcome.ok is False
+    assert outcome.error_kind == "not_found"
+    assert "S07 - VACATION CLUB" in outcome.detail
+    assert elapsed < 2.0  # previously: two full action-timeout waits (40s)

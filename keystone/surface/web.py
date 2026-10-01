@@ -246,6 +246,17 @@ _HELPERS_JS = """
     return null;
   }
 
+  // A <select>'s *name* deliberately excludes its options' text (see
+  // computeName), but the model still has to know what it can pick -- the
+  // mock labels options "S07 - VACATION CLUB" (code + label), which rarely
+  // matches a value the model would guess from the goal text alone ("VACATION
+  // CLUB"). Exposing the real option strings is what lets it choose correctly
+  // instead of guessing blind.
+  function computeOptions(e) {
+    if (e.tagName.toLowerCase() !== 'select') return [];
+    return Array.from(e.options).map(o => textOf(o));
+  }
+
   function computeChecked(e) {
     const tag = e.tagName.toLowerCase();
     if (tag === 'input') {
@@ -321,6 +332,7 @@ _HELPERS_JS = """
       role: role,
       name: computeName(el),
       value: computeValue(el, role),
+      options: computeOptions(el),
       checked: computeChecked(el),
       required: !!(el.required || el.getAttribute('aria-required') === 'true'),
       invalid: (el.getAttribute('aria-invalid') === 'true') ||
@@ -496,6 +508,7 @@ class PlaywrightSurface(Surface):
                     role=role,
                     name=name,
                     value=desc["value"],
+                    options=desc.get("options") or [],
                     frame_path=frame_path,
                     ancestor_roles=ancestor_roles,
                     ancestor_name=desc["ancestorName"],
@@ -591,10 +604,36 @@ class PlaywrightSurface(Surface):
             elif request.action == "type":
                 await handle.fill(request.value, timeout=timeout_ms)
             elif request.action == "select":
-                try:
-                    await handle.select_option(label=request.value, timeout=timeout_ms)
-                except PlaywrightError:
-                    await handle.select_option(value=request.value, timeout=timeout_ms)
+                # Found live: a caller (the LLM, guessing from goal text
+                # alone) passing a value that matches neither an <option>'s
+                # value nor its label -- e.g. "VACATION CLUB" against options
+                # labelled "S07 - VACATION CLUB" -- made Playwright's own
+                # select_option() hang for the full action timeout rather
+                # than fail fast, and it was then retried a second time
+                # (value= after label=) for a second full timeout. Matching
+                # against the live option list ourselves, normalized, turns
+                # that into an immediate, clear failure, and still succeeds
+                # on a case/whitespace-insensitive or code-vs-label mismatch
+                # that an exact Playwright match would have rejected.
+                raw_options: list[dict[str, str]] = await handle.evaluate(
+                    "e => Array.from(e.options).map(o => ({value: o.value, label: o.textContent}))"
+                )
+                wanted = normalize(request.value)
+                exact = [o for o in raw_options if normalize(o["label"]) == wanted or normalize(o["value"]) == wanted]
+                chosen = exact[0] if exact else None
+                if chosen is None:
+                    contains = [o for o in raw_options if wanted and wanted in normalize(o["label"])]
+                    if len(contains) == 1:
+                        chosen = contains[0]
+                if chosen is None:
+                    available = ", ".join(repr(o["label"]) for o in raw_options) or "(no options)"
+                    return ActionOutcome(
+                        ok=False,
+                        detail=f"{request.value!r} matches no option; available: {available}",
+                        error_kind="not_found",
+                        duration_ms=self._elapsed_ms(start),
+                    )
+                await handle.select_option(value=chosen["value"], timeout=timeout_ms)
             elif request.action == "read":
                 desc = await handle.evaluate(_DESCRIBE_JS)
                 value = desc.get("value")

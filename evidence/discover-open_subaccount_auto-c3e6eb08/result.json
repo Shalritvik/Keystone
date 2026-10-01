@@ -1,0 +1,10 @@
+{
+  "artifact_path": null,
+  "capability_id": null,
+  "discovery_run_id": "discover-open_subaccount_auto-c3e6eb08",
+  "ok": false,
+  "reason": "stopped before declaring done: repeated_failures",
+  "steps_recorded": 3,
+  "stopped_reason": "repeated_failures",
+  "verification_run_id": null
+}

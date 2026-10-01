@@ -88,6 +88,18 @@ class AXNode:
     value: str | None = None
     description: str | None = None
 
+    options: list[str] = field(default_factory=list)
+    """The exact strings a combobox/listbox will accept for `select`.
+
+    A <select>'s accessible name never includes its options' text (that's
+    content, not a label), and its current value is just the one currently
+    chosen -- neither tells the model what else it could pick. Legacy forms
+    like this one label options "S07 - VACATION CLUB" (code + label), which a
+    model guessing from the goal text alone ("VACATION CLUB") will not
+    produce. Listing the real strings here is what lets `select` target one
+    of them exactly instead of guessing blind.
+    """
+
     frame_path: list[str] = field(default_factory=list)
     ancestor_roles: list[str] = field(default_factory=list)
     ancestor_name: str | None = None
@@ -131,6 +143,8 @@ class AXNode:
             bits.append(f"({','.join(flags)})")
         if self.frame_path:
             bits.append(f"<{'/'.join(self.frame_path)}>")
+        if self.options:
+            bits.append("options=" + "|".join(self.options))
         return " ".join(bits)
 
     def to_locator(self, rationale: str = "") -> AXLocator:
