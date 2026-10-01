@@ -1,7 +1,8 @@
 # Architecture
 
-Status as of the phase-1 review: the surface adapter is built and verified
-live against the mock. Everything downstream of it is designed, not built.
+All layers below are built and verified live against the mock: discovery,
+replay, guardrails, evidence, and escalation. The known gaps are tracked
+explicitly in §4, not hidden by this status line.
 
 ## 1. The whole system
 
@@ -17,7 +18,7 @@ The path that touches production has no model in it at all.
                                  │                │   every time after
                                  ▼                ▼
   ┌──────────────────────────────────┐  ┌──────────────────────────────────┐
-  │  DISCOVERY              [TODO]   │  │  REPLAY                 [TODO]   │
+  │  DISCOVERY              [BUILT]  │  │  REPLAY                 [BUILT]  │
   │  ······························  │  │  ······························  │
   │  LLM in the loop                 │  │  NO LLM anywhere                 │
   │  slow, rate-limited, one-off     │  │  fast, free, constant            │
@@ -46,7 +47,7 @@ The path that touches production has no model in it at all.
         Both paths issue every single action through the same two layers:
 
                 ┌───────────────────────────────────────────┐
-                │  GUARDRAILS   (policy.yaml)      [TODO]   │ ◄─ a gate,
+                │  GUARDRAILS   (policy.yaml)      [BUILT]  │ ◄─ a gate,
                 │  origin · route · action type · risk      │    not a prompt
                 └─────────────────────┬─────────────────────┘
                                       ▼
@@ -67,7 +68,7 @@ The path that touches production has no model in it at all.
              │  no test IDs [BUILT]│
              └─────────────────────┘
 
-  cross-cutting:  EVIDENCE (jsonl) [TODO]   ESCALATION (human) [TODO]
+  cross-cutting:  EVIDENCE (jsonl) [BUILT]   ESCALATION (human) [BUILT]
 ```
 
 ---
