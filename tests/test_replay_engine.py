@@ -39,7 +39,7 @@ async def test_success_branch(engine, artifact):
     result = await engine.run(artifact, {"member_id": "12345"})
     assert result.status == "success"
     assert result.ok is True
-    assert result.outputs["regular_savings_balance"] == "4,182.55"
+    assert result.outputs["regular_savings_balance"] == {"amount": "4182.55", "currency": "USD"}
     assert [s.status for s in result.steps] == ["ok", "ok", "ok", "ok"]
     # Every locator on this clean artifact resolves via primary match --
     # the raw material keystone/reliability.py reads back to score a run.
@@ -84,7 +84,7 @@ async def test_recovers_from_interstitial_and_still_succeeds(engine, artifact, m
     httpx.post(f"{mockapp_server}/_faults/interstitial/arm")
     result = await engine.run(artifact, {"member_id": "22881"})
     assert result.status == "success"
-    assert result.outputs["regular_savings_balance"] == "17,640.12"
+    assert result.outputs["regular_savings_balance"] == {"amount": "17640.12", "currency": "USD"}
     assert result.steps[0].status == "recovered"
     assert result.steps[0].recoveries_applied == ["DISMISS_MOTD_INTERSTITIAL"]
 
@@ -101,7 +101,7 @@ async def test_cross_tenant_replay_with_two_small_overrides(engine, artifact):
     result = await engine.run(artifact, {"member_id": "12345"}, tenant="harbor")
     assert result.status == "success"
     assert result.tenant == "harbor"
-    assert result.outputs["regular_savings_balance"] == "4,182.55"
+    assert result.outputs["regular_savings_balance"] == {"amount": "4182.55", "currency": "USD"}
     assert result.steps[1].target == 'textbox "Account Number:"'
     assert result.steps[2].target == 'button "Find"'
 
@@ -254,3 +254,37 @@ async def test_tenant_override_param_defaults_applies_and_can_be_overridden(engi
     overridden = await engine.run(artifact, {"member_id": "22881"}, tenant="pinnacle")
     assert overridden.status == "success"
     assert overridden.steps[1].value == "22881"
+
+
+# ---- _cast: "money" output typing -----------------------------------------
+#
+# Regression coverage: OutputSpec declared type="money" on the real lookup
+# artifact, but _cast() had no branch for it at all -- a "typed" output
+# degraded to the raw display string ("4,182.55"), comma and all, exactly
+# the thing design rule "the model produces a plan, never data" is meant to
+# prevent downstream of discovery too. Found via external review.
+
+
+def test_cast_money_strips_the_thousands_separator_and_splits_currency():
+    assert ReplayEngine._cast("4,182.55", "money") == {"amount": "4182.55", "currency": "USD"}
+
+
+def test_cast_money_keeps_exact_decimal_precision_not_float_rounding():
+    # float("17,640.12".replace(",","")) == 17640.12 looks fine printed, but
+    # float is binary -- Decimal is the whole point here, not cosmetic.
+    from decimal import Decimal
+    result = ReplayEngine._cast("17,640.12", "money")
+    assert Decimal(result["amount"]) == Decimal("17640.12")
+    assert result["amount"] == "17640.12"  # exact string, no float round-trip
+
+
+def test_cast_money_tolerates_a_leading_dollar_sign():
+    assert ReplayEngine._cast("$4182.55", "money") == {"amount": "4182.55", "currency": "USD"}
+
+
+def test_cast_money_falls_back_to_the_raw_string_when_it_cant_parse():
+    assert ReplayEngine._cast("N/A", "money") == "N/A"
+
+
+def test_cast_money_none_stays_none():
+    assert ReplayEngine._cast(None, "money") is None

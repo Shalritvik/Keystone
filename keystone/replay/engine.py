@@ -31,6 +31,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -642,7 +643,23 @@ class ReplayEngine:
                 return value
         if value_type == "boolean":
             return value.strip().lower() in {"true", "yes", "1"}
-        return value  # string, date, money -- pass through as-displayed
+        if value_type == "money":
+            # Decimal, never float: a banking balance losing cents to binary
+            # floating-point rounding is exactly the class of bug this
+            # system exists to not have. No currency appears anywhere in
+            # this app's own data (mockapp/data.py's balances are bare
+            # "4,182.55" strings, no symbol) -- USD is this mock credit
+            # union's only currency, not a general assumption, so it's
+            # fixed here rather than adding a schema field nothing can
+            # populate yet. Falls back to the raw string if it doesn't
+            # parse as a plain decimal amount (e.g. a stray currency symbol
+            # or thousands separator this app doesn't actually use).
+            cleaned = value.strip().lstrip("$").replace(",", "")
+            try:
+                return {"amount": str(Decimal(cleaned)), "currency": "USD"}
+            except InvalidOperation:
+                return value
+        return value  # string, date -- pass through as-displayed
 
     # -- evidence -----------------------------------------------------------
 
