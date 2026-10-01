@@ -92,7 +92,7 @@ avoid a packaging step this scope doesn't need), so `-m` is what puts the
 repo root on `sys.path` for `import keystone` to resolve. Bare `pytest` fails
 with `ModuleNotFoundError: No module named 'keystone'`.
 
-144 tests, no API key required for any of them -- confirmed directly by
+154 tests, no API key required for any of them -- confirmed directly by
 running the full suite with `.env` removed and `NVIDIA_API_KEY`/`LLM_API_KEY`
 unset from the environment entirely. The suite starts the mock app itself
 (reusing one already running on :8800 if it finds one) and gives every test
@@ -201,7 +201,7 @@ mockapp/               The hostile legacy-app stand-in + fault switchboard
 scripts/               Manual verification tools (dump_ax, run_replay, run_discovery, run_escalation_demo)
 artifacts/             Saved capability artifacts (draft and approved)
 policy.yaml            The reviewable safety-guardrail contract
-tests/                 110 tests, no API key required
+tests/                 154 tests, no API key required
 ```
 
 ## Design

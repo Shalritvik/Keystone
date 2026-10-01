@@ -74,21 +74,21 @@ keystone/
   schemas.py         The capability contract + replay result contract. Done.
   surface/
     base.py          Surface ABC, AXNode, Observation, ActionRequest. Done.
-    web.py           Playwright adapter: AX extraction, act, resolve.  TODO
-  evidence.py        Crash-safe JSONL evidence writer.                 TODO
-  guardrails.py      Thin enforcement wrapper over Policy.             TODO
-  llm.py             NIM (OpenAI-compatible) client w/ 429 backoff.    TODO
-  replay/engine.py   Deterministic executor + error taxonomy.          TODO
+    web.py           Playwright adapter: AX extraction, act, resolve.  Done.
+  evidence.py        Crash-safe JSONL evidence writer.                 Done.
+  guardrails.py      Thin enforcement wrapper over Policy.             Done.
+  llm.py             NIM (OpenAI-compatible) client w/ 429 backoff.    Done.
+  replay/engine.py   Deterministic executor + error taxonomy.          Done.
   discovery/
-    agent.py         Observe/decide/act loop.                          TODO
-    compiler.py      Run trace -> CapabilityArtifact.                  TODO
-    prompts.py       System prompt + action schema.                    TODO
+    agent.py         Observe/decide/act loop.                          Done.
+    compiler.py      Run trace -> CapabilityArtifact.                  Done.
+    prompts.py       System prompt + action schema.                    Done.
   escalation/
-    controller.py    Stuck detection, intervention requests, resume.   TODO
-    console.py       Minimal operator console over WebSocket.          TODO
-  cli.py             discover / replay / approve / catalog.            TODO
+    controller.py    Stuck detection, intervention requests, resume.   Done.
+    console.py       Minimal operator console over WebSocket.          Done.
+  cli.py             discover / replay / approve / catalog.            Done.
 mockapp/             Hostile legacy frameset app + fault switchboard. Done.
-tests/                                                                 TODO
+tests/                                                                 Done.
 policy.yaml          The reviewable guardrail contract. Done.
 ```
 
