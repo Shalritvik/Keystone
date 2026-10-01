@@ -84,6 +84,35 @@ async def test_raise_intervention_blocks_until_resumed(tmp_path):
     assert resolved.request_id == request.request_id
 
 
+@pytest.mark.asyncio
+async def test_raise_intervention_writes_no_trace_record_when_the_surface_cant_trace(tmp_path):
+    """FakeSurface never overrides start_trace/stop_trace, so it gets
+
+    Surface's base no-op (returns False) -- confirms a surface with no
+    tracing concept (a hypothetical future desktop adapter, today
+    FakeSurface) degrades cleanly: no crash, and no escalation_trace_captured
+    record claiming a trace that was never actually taken.
+    """
+    writer = EvidenceWriter(tmp_path)
+    controller = EscalationController(FakeSurface(), writer)
+
+    async def escalate():
+        return await controller.raise_intervention(
+            run_id="r1", capability_id="cap", goal=None, step_index=0,
+            reason="risky", screenshot_dir=tmp_path,
+        )
+
+    task = asyncio.create_task(escalate())
+    await asyncio.sleep(0.05)
+    controller.resume(note="done")
+    await task
+    writer.close()
+
+    events = [json.loads(line) for line in (tmp_path / "run.jsonl").read_text().splitlines()]
+    assert not any(e["kind"] == "escalation_trace_captured" for e in events)
+    assert not (tmp_path / "traces").exists()
+
+
 def test_resume_without_pending_raises(tmp_path):
     controller = EscalationController(FakeSurface(), EvidenceWriter(tmp_path))
     with pytest.raises(RuntimeError):
@@ -138,6 +167,19 @@ async def test_attended_handoff_resumes_and_completes(guarded_surface, tmp_path,
     posted_step = next(s for s in result.steps if s.index == 3)
     assert posted_step.status == "recovered"
     assert "human intervention" in posted_step.detail
+
+    # Regression: the operator note is free text the human chose to type,
+    # not a record of what they actually clicked -- the brief's "record
+    # what the human did" needs more than that. A real Playwright trace
+    # should exist for the whole handoff window, not just the note.
+    trace_files = list((tmp_path / "controller-log" / "traces").glob("trace_*.zip"))
+    assert len(trace_files) == 1
+    import zipfile
+    assert zipfile.is_zipfile(trace_files[0])
+    events = [json.loads(line) for line in (tmp_path / "controller-log" / "run.jsonl").read_text().splitlines()]
+    trace_record = next(e for e in events if e["kind"] == "escalation_trace_captured")
+    assert trace_record["saved"] is True
+    assert trace_record["trace_path"] == str(trace_files[0])
 
 
 @pytest.mark.asyncio

@@ -7,9 +7,11 @@ surface, so they're plain synchronous tests against a temp artifact dir.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 
 from keystone.cli import _load_artifact, _next_discovery_version, _parse_params, build_parser
@@ -178,7 +180,7 @@ async def test_replay_reports_a_clean_error_for_a_bad_param_instead_of_crashing(
 
     args = Namespace(
         capability_id="lookup_member_savings_balance", params=["member_id=abc"],
-        tenant=None, attended=False,
+        tenant=None, attended=False, escalate=False, escalation_port=8765,
     )
     exit_code = await cmd_replay(args)
     out = capsys.readouterr()
@@ -262,3 +264,74 @@ def test_catalog_skips_an_approved_artifact_hand_edited_after_approval(tmp_path,
     assert exit_code == 0
     assert "does not match the hash" in out.err
     assert json.loads(out.out) == []
+
+
+@pytest.mark.asyncio
+async def test_replay_escalate_flag_wires_a_real_console_a_human_can_connect_to(mockapp_server, clear_faults):
+    """Regression test: cmd_replay never constructed an EscalationController
+
+    at all -- every escalation trigger just stopped with status="escalated"
+    and nothing to hand off to, even though the real pause/resume/console
+    mechanism already existed (scripts/run_escalation_demo.py). Verified
+    with a genuine external websocket client, the same way a real operator
+    tool would connect -- not by inspecting cmd_replay's internals.
+
+    Resuming here doesn't fix the underlying session (that needs the SAME
+    live browser a real human would be looking at in headed mode, which a
+    separate test process has no handle to -- the engine-level mechanics of
+    a resume that *does* fix things are already covered directly in
+    test_escalation.py). So this resumes through all max_escalation_attempts
+    and confirms the run correctly gives up rather than hanging forever --
+    proving the console wiring round-trips through repeated escalations,
+    not just a single one.
+
+    Found live while writing this test, not in cmd_replay itself: the
+    console starts listening (serve_console returns) well before the
+    escalation is actually raised -- real browser launch, navigation, and
+    the failing action all still have to happen first. Connecting and
+    immediately sending "resume" races that: the controller is still
+    "idle", the resume is a no-op error, and the real escalation then
+    fires later with nobody left polling for it -- a hang with no
+    exception, not a crash. Fixed in the test by polling until the
+    connection's own first message actually says "pending" before ever
+    sending resume.
+    """
+    import websockets
+    from argparse import Namespace
+
+    from keystone.cli import cmd_replay
+
+    httpx.post(f"{mockapp_server}/_faults/session_timeout/arm")
+
+    port = 8799  # distinct from the documented default (8765), avoids clashing with a real console
+    args = Namespace(
+        capability_id="lookup_member_savings_balance", params=["member_id=12345"],
+        tenant=None, attended=False, escalate=True, escalation_port=port,
+    )
+    run_task = asyncio.ensure_future(cmd_replay(args))
+
+    async def wait_for_pending(timeout_s: float = 10.0) -> dict:
+        async with asyncio.timeout(timeout_s):
+            while True:
+                try:
+                    async with websockets.connect(f"ws://127.0.0.1:{port}") as ws:
+                        first = json.loads(await ws.recv())
+                        if first["type"] == "pending":
+                            return first
+                except OSError:
+                    pass  # console not listening yet
+                await asyncio.sleep(0.1)
+
+    for _ in range(3):  # ReplayEngine's default max_escalation_attempts
+        pending = await wait_for_pending()
+        assert pending["request"]["reason"].startswith("The session expired")
+        async with websockets.connect(f"ws://127.0.0.1:{port}") as ws:
+            await ws.recv()  # the fresh connection's own on-connect pending message
+            await ws.send(json.dumps({"action": "resume", "note": "verification pass"}))
+            reply = json.loads(await ws.recv())
+            assert reply["type"] == "resumed"
+
+    async with asyncio.timeout(10.0):
+        exit_code = await run_task
+    assert exit_code == 1  # status="escalated" -> ok is False
+    httpx.post(f"{mockapp_server}/_faults/clear")

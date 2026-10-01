@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from keystone.evidence import EscalationRaised, EscalationResumed, EvidenceWriter
+from keystone.evidence import EscalationRaised, EscalationResumed, EscalationTraceCaptured, EvidenceWriter
 from keystone.guardrails import GuardedSurface
 
 Control = Literal["automation", "human"]
@@ -127,7 +127,25 @@ class EscalationController:
             )
         )
 
+        # Best-effort, start-to-finish across the whole handoff window: the
+        # operator note captured by resume() is free text the human chose
+        # to type, not a record of what they actually clicked. A trace is
+        # the "record what the human did" the brief actually asks for --
+        # the note is a convenience on top of it, not a substitute for it.
+        tracing = await self._surface.start_trace()
+
         await self._resume_event.wait()
+
+        if tracing:
+            trace_path = self._writer.trace_dir() / f"trace_{request_id}.zip"
+            saved = await self._surface.stop_trace(str(trace_path))
+            self._writer.write(
+                EscalationTraceCaptured(
+                    run_id=run_id, request_id=request_id,
+                    saved=saved, trace_path=str(trace_path) if saved else None,
+                )
+            )
+
         return request
 
     def resume(self, note: str = "") -> InterventionRequest:

@@ -1,7 +1,7 @@
 """The CLI: discover, replay, approve, catalog.
 
     python -m keystone discover "<goal>" --entry <url> --capability-id <id> [--tenant T] [--force]
-    python -m keystone replay <capability_id> [param=value ...] [--tenant T] [--attended]
+    python -m keystone replay <capability_id> [param=value ...] [--tenant T] [--attended] [--escalate]
     python -m keystone approve <capability_id> [param=value ...] --by <name> [--note TEXT] [--runs N] [--force]
     python -m keystone catalog [--state draft|approved|deprecated|all]
 
@@ -20,6 +20,7 @@ import asyncio
 import json
 import re
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,6 +28,9 @@ from pydantic import ValidationError
 
 from keystone.config import Policy, Settings
 from keystone.discovery.agent import discover as run_discovery
+from keystone.escalation.console import serve_console
+from keystone.escalation.controller import EscalationController
+from keystone.evidence import EvidenceWriter
 from keystone.guardrails import GuardedSurface, Guardrails
 from keystone.reliability import ReliabilityReport, assess
 from keystone.replay.engine import ReplayEngine, ReplayError
@@ -164,11 +168,44 @@ async def cmd_replay(args: argparse.Namespace) -> int:
         )
         return 2
 
+    # --escalate deliberately does NOT force headed mode on its own, same
+    # convention scripts/run_escalation_demo.py already uses: whether a
+    # human needs to literally see the window is controlled independently
+    # by KEYSTONE_HEADLESS, not implied by whether a controller is wired
+    # in. Coupling the two would make --escalate unusable (and slow to
+    # test) in exactly the headless/server contexts it also needs to work
+    # in -- a real operator console doesn't require the automation host
+    # itself to have a display.
     headless = settings.headless and not args.attended
     raw = await PlaywrightSurface.create(headless=headless, action_timeout_s=settings.action_timeout_s)
     guarded = GuardedSurface(raw, Guardrails(policy, attended=args.attended))
+
+    controller: EscalationController | None = None
+    console_writer: EvidenceWriter | None = None
+    console_server = None
+    if args.escalate:
+        # Found via external review: ordinary CLI replay never constructed
+        # an EscalationController at all -- every escalation trigger just
+        # stopped with status="escalated" and nothing to hand off to, even
+        # though the real pause/resume/console mechanism already existed
+        # and worked (scripts/run_escalation_demo.py). A dedicated,
+        # separately-named evidence directory for the controller's own log
+        # -- same pattern the demo script already uses -- keeps "one writer
+        # per directory" true without coordinating run_ids across two
+        # independently-constructed EvidenceWriters.
+        console_writer = EvidenceWriter(
+            settings.evidence_dir / f"escalation-{artifact.capability_id}-{uuid.uuid4().hex[:8]}"
+        )
+        controller = EscalationController(guarded, console_writer)
+        console_server = await serve_console(controller, port=args.escalation_port)
+        print(
+            f"escalation console listening on ws://127.0.0.1:{args.escalation_port} -- "
+            'if the run pauses, connect and send {"action": "resume"} to continue',
+            file=sys.stderr,
+        )
+
     try:
-        engine = ReplayEngine(guarded, settings.evidence_dir)
+        engine = ReplayEngine(guarded, settings.evidence_dir, escalation_controller=controller)
         result = await engine.run(artifact, _parse_params(args.params), tenant=args.tenant)
     except ReplayError as exc:
         # A bad --param (unknown name, wrong pattern, missing required value)
@@ -178,6 +215,11 @@ async def cmd_replay(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     finally:
+        if console_server is not None:
+            console_server.close()
+            await console_server.wait_closed()
+        if console_writer is not None:
+            console_writer.close()
         await guarded.close()
 
     print(json.dumps(result.model_dump(mode="json"), indent=2, default=str))
@@ -290,6 +332,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_replay.add_argument("--param", action="append", default=[], metavar="key=value", dest="params")
     p_replay.add_argument("--tenant")
     p_replay.add_argument("--attended", action="store_true", help="run headed; allows a draft and risky actions")
+    p_replay.add_argument(
+        "--escalate", action="store_true",
+        help=(
+            "on a stuck or risky condition, pause and expose a live WebSocket console "
+            "for a human to take over the SAME session and resume, instead of just "
+            "stopping with status=escalated and nothing to hand off to"
+        ),
+    )
+    p_replay.add_argument("--escalation-port", type=int, default=8765)
 
     p_approve = sub.add_parser("approve", help="promote draft -> approved")
     p_approve.add_argument("capability_id")

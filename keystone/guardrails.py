@@ -185,3 +185,14 @@ class GuardedSurface(Surface):
 
     async def close(self) -> None:
         await self._surface.close()
+
+    async def start_trace(self) -> bool:
+        # Looking is never unsafe -- same reasoning as observe/resolve/
+        # screenshot passing through unchanged. Forwarded explicitly: Surface
+        # declares these as concrete, not abstract, so without this override
+        # GuardedSurface would silently inherit the base class's no-op
+        # instead of delegating to the real PlaywrightSurface underneath it.
+        return await self._surface.start_trace()
+
+    async def stop_trace(self, path: str) -> bool:
+        return await self._surface.stop_trace(path)

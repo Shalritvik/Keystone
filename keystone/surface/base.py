@@ -329,6 +329,30 @@ class Surface(ABC):
     async def close(self) -> None:
         ...
 
+    # -- optional: richer evidence across a human handoff -----------------
+    #
+    # Deliberately concrete, not abstract: tracing is a Playwright-specific
+    # capability with no obvious equivalent on, say, a future desktop
+    # adapter (macOS AX API / Windows UI Automation have no comparable
+    # browser-trace concept). The six methods above are the real contract
+    # every surface must honour; these two are a best-effort extra every
+    # surface gets to opt into, defaulting to a clean no-op rather than
+    # forcing every future implementation to stub them out.
+
+    async def start_trace(self) -> bool:
+        """Best-effort: start capturing a detailed action trace across an
+
+        escalation handoff. Returns whether tracing actually started.
+        """
+        return False
+
+    async def stop_trace(self, path: str) -> bool:
+        """Best-effort: stop capturing and save the trace to ``path``.
+
+        Returns whether a trace was actually saved.
+        """
+        return False
+
 
 def normalize(text: str | None) -> str:
     return " ".join((text or "").split()).strip().casefold()

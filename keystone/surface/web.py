@@ -758,3 +758,19 @@ class PlaywrightSurface(Surface):
         await self._context.close()
         await self._browser.close()
         await self._playwright.stop()
+
+    # -- escalation trace capture ---------------------------------------
+
+    async def start_trace(self) -> bool:
+        try:
+            await self._context.tracing.start(screenshots=True, snapshots=True, sources=False)
+            return True
+        except PlaywrightError:
+            return False
+
+    async def stop_trace(self, path: str) -> bool:
+        try:
+            await self._context.tracing.stop(path=path)
+            return True
+        except PlaywrightError:
+            return False

@@ -196,9 +196,30 @@ class EscalationResumed:
     timestamp: str = field(default_factory=_now)
 
 
+@dataclass
+class EscalationTraceCaptured:
+    """A richer record of what the human actually did during the handoff,
+
+    beyond the free-text operator note -- a Playwright trace (DOM
+    snapshots, actions, screenshots) of the live session for the whole
+    window between raise_intervention() pausing and resume() unblocking
+    it. ``saved`` is False on a surface with no tracing concept (not every
+    future adapter will have one); the note alone still gets recorded
+    either way.
+    """
+
+    kind: str = field(default="escalation_trace_captured", init=False)
+    schema_version: str = field(default=SCHEMA_VERSION, init=False)
+    run_id: str = ""
+    request_id: str = ""
+    saved: bool = False
+    trace_path: str | None = None
+    timestamp: str = field(default_factory=_now)
+
+
 Record = (
     RunStarted | StepStarted | StepFinished | RunFinished | ModelDecision
-    | EscalationRaised | EscalationResumed
+    | EscalationRaised | EscalationResumed | EscalationTraceCaptured
 )
 
 _KIND_TO_TYPE: dict[str, type] = {
@@ -209,6 +230,7 @@ _KIND_TO_TYPE: dict[str, type] = {
     "model_decision": ModelDecision,
     "escalation_raised": EscalationRaised,
     "escalation_resumed": EscalationResumed,
+    "escalation_trace_captured": EscalationTraceCaptured,
 }
 
 
@@ -226,6 +248,7 @@ class EvidenceWriter:
           run.jsonl        append-only, one record per line
           result.json      atomic; presence means the run finished
           screenshots/      captured on failure only
+          traces/           captured only across an escalation handoff
     """
 
     def __init__(self, run_dir: Path | str) -> None:
@@ -244,6 +267,11 @@ class EvidenceWriter:
 
     def screenshot_dir(self) -> Path:
         d = self.run_dir / "screenshots"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def trace_dir(self) -> Path:
+        d = self.run_dir / "traces"
         d.mkdir(parents=True, exist_ok=True)
         return d
 
