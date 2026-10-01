@@ -162,6 +162,32 @@ def test_replay_param_flag_survives_any_ordering_relative_to_other_flags():
     assert args.tenant == "harbor"
 
 
+@pytest.mark.asyncio
+async def test_replay_reports_a_clean_error_for_a_bad_param_instead_of_crashing(mockapp_server, clear_faults, capsys):
+    """Regression test: a --param that fails its declared pattern raised
+
+    ReplayError deep inside ReplayEngine.run(), and cmd_replay never caught
+    it -- `replay lookup_member_savings_balance --param member_id=abc`
+    crashed with a raw Python traceback instead of the clean, structured
+    error every other invocation mistake in this CLI produces. Verified
+    live before this fix existed.
+    """
+    from argparse import Namespace
+
+    from keystone.cli import cmd_replay
+
+    args = Namespace(
+        capability_id="lookup_member_savings_balance", params=["member_id=abc"],
+        tenant=None, attended=False,
+    )
+    exit_code = await cmd_replay(args)
+    out = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "does not match pattern" in out.err
+    assert "Traceback" not in out.err
+
+
 def test_replay_subcommand_requires_capability_id():
     parser = build_parser()
     with pytest.raises(SystemExit):

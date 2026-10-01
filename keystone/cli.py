@@ -29,7 +29,7 @@ from keystone.config import Policy, Settings
 from keystone.discovery.agent import discover as run_discovery
 from keystone.guardrails import GuardedSurface, Guardrails
 from keystone.reliability import ReliabilityReport, assess
-from keystone.replay.engine import ReplayEngine
+from keystone.replay.engine import ReplayEngine, ReplayError
 from keystone.schemas import CapabilityArtifact
 from keystone.surface.web import PlaywrightSurface
 
@@ -127,10 +127,18 @@ async def cmd_discover(args: argparse.Namespace) -> int:
 
     version = _next_discovery_version(settings, args.capability_id, force=args.force)
     verify_params = _parse_params(args.verify_param) if args.verify_param else None
-    outcome = await run_discovery(
-        args.goal, args.entry, capability_id=args.capability_id, tenant=args.tenant,
-        verify_params=verify_params, version=version,
-    )
+    try:
+        outcome = await run_discovery(
+            args.goal, args.entry, capability_id=args.capability_id, tenant=args.tenant,
+            verify_params=verify_params, version=version,
+        )
+    except ReplayError as exc:
+        # The generalisation replay inside discover() validates --verify-param
+        # against the artifact's own declared pattern the same way `replay`
+        # does -- a bad value (e.g. non-numeric for a digits-only param) must
+        # not surface as a raw traceback any more than a bad `replay` param does.
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     print(f"ok={outcome.ok}", file=sys.stderr)
     print(f"reason={outcome.reason}", file=sys.stderr)
@@ -162,6 +170,13 @@ async def cmd_replay(args: argparse.Namespace) -> int:
     try:
         engine = ReplayEngine(guarded, settings.evidence_dir)
         result = await engine.run(artifact, _parse_params(args.params), tenant=args.tenant)
+    except ReplayError as exc:
+        # A bad --param (unknown name, wrong pattern, missing required value)
+        # is a caller mistake, not a fact about the live surface -- it must
+        # report as a clean, structured error, not an unhandled traceback.
+        # Found live: `--param member_id=abc` crashed with a raw stack trace.
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     finally:
         await guarded.close()
 
@@ -182,7 +197,11 @@ async def cmd_approve(args: argparse.Namespace) -> int:
             raw = await PlaywrightSurface.create(headless=settings.headless, action_timeout_s=settings.action_timeout_s)
             return GuardedSurface(raw, Guardrails(policy, attended=False))
 
-        report = await assess(factory, settings.evidence_dir, artifact, params, tenant=args.tenant, n_runs=args.runs)
+        try:
+            report = await assess(factory, settings.evidence_dir, artifact, params, tenant=args.tenant, n_runs=args.runs)
+        except ReplayError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
         print(f"reliability: {report.summary()}", file=sys.stderr)
         if not report.is_healthy and not args.force:
             print(
